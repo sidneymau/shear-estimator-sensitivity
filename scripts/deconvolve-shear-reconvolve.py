@@ -27,14 +27,28 @@ shear1_g1 = 0.01
 shear1_g2 = 0.01
 
 # second shear
-shear2_g1 = 0.05
-shear2_g2 = 0.05
+shear2_g1 = 0.001
+shear2_g2 = 0.001
 
 
 # Defining PSFs
 psf1 = galsim.Moffat(flux=1., beta=psf_beta, half_light_radius=psf_re)
 psf2 = psf1
 psf3 = psf1
+
+
+def center_crop_array(array, shape_x, shape_y):
+	y, x = array.shape
+	
+	x_center = (x)//2
+	x_delta = (shape_x)//2
+
+	y_center = (y)//2
+	y_delta = (shape_y)//2
+
+	print(x_center, x_delta)
+	print(y_center, y_delta)
+	return array[x_center - x_delta:x_center + x_delta, y_center - y_delta:y_center + y_delta]
 
 
 def double_shear(psf_real, psf_deconvolve, psf_reconvolve):
@@ -71,6 +85,37 @@ def double_shear(psf_real, psf_deconvolve, psf_reconvolve):
 	sheared_minus_galaxy = sheared_minus.drawImage(scale=pixel_scale)
 	reconvolved_plus_galaxy = reconvolved_plus.drawImage(scale=pixel_scale)
 	reconvolved_minus_galaxy = reconvolved_minus.drawImage(scale=pixel_scale)
+
+	# Measuring galaxy shape parameters
+	# We want to measure the shapes of reconvolved_plus_galaxy and reconvolved_minus_galaxy
+	# the documentation recommends that we use the method='no_pixel' on the images
+
+	plus_galaxy = reconvolved_plus.drawImage(scale=pixel_scale, method='no_pixel')
+	minus_galaxy = reconvolved_minus.drawImage(scale=pixel_scale, method='no_pixel')
+
+	plus_moments = plus_galaxy.FindAdaptiveMom()
+	minus_moments = minus_galaxy.FindAdaptiveMom()
+
+	plus_shape = plus_moments.observed_shape
+	minus_shape = minus_moments.observed_shape
+
+	e1_plus = plus_shape.e1
+	e2_plus = plus_shape.e2
+
+	e1_minus = minus_shape.e1
+	e2_minus = minus_shape.e2
+
+	print('plus ellipticities: ', e1_plus, e2_plus)
+	print('minus ellipticities: ', e1_minus, e2_minus)
+
+	# calculating the shear response matrix R
+	R_11 = (e1_plus - e1_minus) / (2 * shear2_g1)
+	R_12 = (e2_plus - e2_minus) / (2 * shear2_g1)
+	R_21 = (e1_plus - e1_minus) / (2 * shear2_g2)
+	R_22 = (e2_plus - e2_minus) / (2 * shear2_g2)
+
+	R = np.array([[R_11, R_12],[R_21, R_22]])
+	print("Shear Response matrix R:\n", R)
 
 
 	# Displaying with matplotlib ------------------------
@@ -116,6 +161,22 @@ def double_shear(psf_real, psf_deconvolve, psf_reconvolve):
 	cb.set_label('Flux')
 
 	plt.savefig('deconvolve-shear-reconvolve.png')
+
+
+	# Plots that show pixel-by-pixel differences between relevant plots
+
+	# Difference between sheared_galaxy (pre-psf convolution) and deconvolved_galaxy (post-deconvolution)
+
+	plt.figure()
+
+	#reshaping deconvolved_galaxy.array
+	# deconvolved_galaxy_reshaped_array = deconvolved_galaxy.array[0:232, 0:232]
+	deconvolved_galaxy_reshaped_array = center_crop_array(deconvolved_galaxy.array, 232, 232)
+	print(deconvolved_galaxy_reshaped_array.shape)
+	plt.imshow(sheared_galaxy.array - deconvolved_galaxy_reshaped_array, vmin=vmin, vmax=vmax)
+
+
+
 	plt.show()
 
 double_shear(psf1, psf2, psf3)
