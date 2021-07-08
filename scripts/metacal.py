@@ -1,17 +1,17 @@
 """
-1. Creates a galaxy, shears it, convolves it with the PSF
-2. Deconvolves by PSF, shears again, then reconvolves by PSF
+Implements the basic process of metacalibration.
+Calculates the R shear response matrix from a galaxy
 """
 
 import galsim
 import numpy as np
 import matplotlib.pyplot as plt
 
-#----------------
 
 # Defining parameters
 gal_flux = 1.e5
 gal_r0 = 2.7
+gal_sigma = 2.
 
 # Using Moffat profile for PSF
 psf_beta = 5
@@ -26,26 +26,27 @@ scalar = 5
 shear1_g1 = 0.01 
 shear1_g2 = 0.01
 
-# second shear
+# calibration shears
 shear2_g1 = 0.001
 shear2_g2 = 0.001
 
 
+# Defining galaxy profile
+galaxy = galsim.Gaussian(flux=gal_flux, sigma=gal_sigma)
+# galaxy = galsim.Exponential(flux=gal_flux, scale_radius=gal_r0)
+
 # Defining PSFs
-psf1 = galsim.Moffat(flux=1., beta=psf_beta, half_light_radius=psf_re)
+psf1 = galsim.Gaussian(flux=1., sigma=1)
+# psf1 = galsim.Moffat(flux=1., beta=psf_beta, half_light_radius=psf_re)
 psf2 = psf1
 psf3 = psf1
 
 
-def metacalibration(psf_real, psf_deconvolve, psf_reconvolve):
-
-	# Creating galaxy from a brightness profile
-	gal = galsim.Exponential(flux=gal_flux, scale_radius=gal_r0)
+def metacalibration(gal, psf_real, psf_deconvolve, psf_reconvolve):
 
 	# Shearing the galaxy
 	sheared = gal.shear(g1=shear1_g1, g2=shear1_g2)
 
-	
 	# Convolving the sheared galaxy with the PSF
 	convolved = galsim.Convolve(sheared, psf_real)
 
@@ -59,7 +60,7 @@ def metacalibration(psf_real, psf_deconvolve, psf_reconvolve):
 
 	# Applying second shear in g2
 	sheared_plus_g2 = deconvolved.shear(g1=0, g2=shear2_g2)
-	sheared_minus_g2 = deconvolved.shear(g1=0, g2= -shear2_g2)
+	sheared_minus_g2 = deconvolved.shear(g1=0, g2=-shear2_g2)
 
 	# Reconvolving by psf_reconvolve for g1
 	reconvolved_plus_g1 = galsim.Convolve(sheared_plus_g1, psf_reconvolve)
@@ -103,7 +104,6 @@ def metacalibration(psf_real, psf_deconvolve, psf_reconvolve):
 	e1_minus_g2 = minus_shape_g2.e1
 	e2_minus_g2 = minus_shape_g2.e2
 
-
 	# calculating the shear response matrix R
 	R_11 = (e1_plus_g1 - e1_minus_g1) / (2 * shear2_g1)
 	R_12 = (e2_plus_g1 - e2_minus_g1) / (2 * shear2_g1)
@@ -114,5 +114,5 @@ def metacalibration(psf_real, psf_deconvolve, psf_reconvolve):
 	print("Shear Response matrix R:\n", R)
 
 
-metacalibration(psf1, psf2, psf3)
+metacalibration(galaxy, psf1, psf2, psf3)
 
