@@ -13,13 +13,10 @@ gal_flux = 1.e5
 gal_r0 = 2.7
 gal_sigma = 2.
 
-# Using Moffat profile for PSF
-psf_beta = 5
-psf_re = 1.0
 
 # first shear
-lensing_shear_g1 = 0.01
-lensing_shear_g2 = 0.01
+lensing_shear_g1 = 0.00
+lensing_shear_g2 = 0.00
 
 # calibration shears
 d_g1 = 0.001
@@ -71,17 +68,21 @@ def delta_shear(observed_gal, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2
 	sheared_plus_g2 = deconvolved.shear(g1=0, g2=delta_g2)
 	sheared_minus_g2 = deconvolved.shear(g1=0, g2=-delta_g2)
 
-	# Reconvolving by psf_reconvolve for g1
-	reconvolved_plus_g1 = galsim.Convolve(sheared_plus_g1, psf_reconvolve)
-	reconvolved_minus_g1 = galsim.Convolve(sheared_minus_g1, psf_reconvolve)
+	# # Reconvolving by psf_reconvolve for g1
+	# reconvolved_plus_g1 = galsim.Convolve(sheared_plus_g1, psf_reconvolve)
+	# reconvolved_minus_g1 = galsim.Convolve(sheared_minus_g1, psf_reconvolve)
+	#
+	# g1_plus_minus = (reconvolved_plus_g1, reconvolved_minus_g1)
+	#
+	#
+	# # Reconvolving by psf_reconvolve for g2
+	# reconvolved_plus_g2 = galsim.Convolve(sheared_plus_g2, psf_reconvolve)
+	# reconvolved_minus_g2 = galsim.Convolve(sheared_minus_g2, psf_reconvolve)
+	#
+	# g2_plus_minus = (reconvolved_plus_g2, reconvolved_minus_g2)
 
-	g1_plus_minus = (reconvolved_plus_g1, reconvolved_minus_g1)
-
-	# Reconvolving by psf_reconvolve for g2
-	reconvolved_plus_g2 = galsim.Convolve(sheared_plus_g2, psf_reconvolve)
-	reconvolved_minus_g2 = galsim.Convolve(sheared_minus_g2, psf_reconvolve)
-
-	g2_plus_minus = (reconvolved_plus_g2, reconvolved_minus_g2)
+	g1_plus_minus = (sheared_plus_g1, sheared_minus_g1)
+	g2_plus_minus = (sheared_plus_g2, sheared_minus_g2)
 
 	return g1_plus_minus, g2_plus_minus
 

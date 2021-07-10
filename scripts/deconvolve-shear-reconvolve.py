@@ -170,12 +170,10 @@ def double_shear(psf_real, psf_deconvolve, psf_reconvolve):
 	plt.figure()
 
 	#reshaping deconvolved_galaxy.array
-	# deconvolved_galaxy_reshaped_array = deconvolved_galaxy.array[0:232, 0:232]
 	deconvolved_galaxy_reshaped_array = center_crop_array(deconvolved_galaxy.array, 232, 232)
-	print(deconvolved_galaxy_reshaped_array.shape)
+
 	plt.imshow(sheared_galaxy.array - deconvolved_galaxy_reshaped_array, vmin=vmin, vmax=vmax)
-
-
+	plt.title('Pixel-by-pixel comparison of pre-PSF sheared galaxy and the convolved-deconvolved version')
 
 	plt.show()
 
