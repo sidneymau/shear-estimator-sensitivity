@@ -68,26 +68,26 @@ def delta_shear(observed_gal, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2
 	sheared_plus_g2 = deconvolved.shear(g1=0, g2=delta_g2)
 	sheared_minus_g2 = deconvolved.shear(g1=0, g2=-delta_g2)
 
-	# # Reconvolving by psf_reconvolve for g1
-	# reconvolved_plus_g1 = galsim.Convolve(sheared_plus_g1, psf_reconvolve)
-	# reconvolved_minus_g1 = galsim.Convolve(sheared_minus_g1, psf_reconvolve)
-	#
-	# g1_plus_minus = (reconvolved_plus_g1, reconvolved_minus_g1)
-	#
-	#
-	# # Reconvolving by psf_reconvolve for g2
-	# reconvolved_plus_g2 = galsim.Convolve(sheared_plus_g2, psf_reconvolve)
-	# reconvolved_minus_g2 = galsim.Convolve(sheared_minus_g2, psf_reconvolve)
-	#
-	# g2_plus_minus = (reconvolved_plus_g2, reconvolved_minus_g2)
+	# Reconvolving by psf_reconvolve for g1
+	reconvolved_plus_g1 = galsim.Convolve(sheared_plus_g1, psf_reconvolve)
+	reconvolved_minus_g1 = galsim.Convolve(sheared_minus_g1, psf_reconvolve)
 
-	g1_plus_minus = (sheared_plus_g1, sheared_minus_g1)
-	g2_plus_minus = (sheared_plus_g2, sheared_minus_g2)
+	g1_plus_minus = (reconvolved_plus_g1, reconvolved_minus_g1)
+
+
+	# Reconvolving by psf_reconvolve for g2
+	reconvolved_plus_g2 = galsim.Convolve(sheared_plus_g2, psf_reconvolve)
+	reconvolved_minus_g2 = galsim.Convolve(sheared_minus_g2, psf_reconvolve)
+
+	g2_plus_minus = (reconvolved_plus_g2, reconvolved_minus_g2)
+
+	# g1_plus_minus = (sheared_plus_g1, sheared_minus_g1)
+	# g2_plus_minus = (sheared_plus_g2, sheared_minus_g2)
 
 	return g1_plus_minus, g2_plus_minus
 
 
-def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, pixel_scale=0.2):
+def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_deconvolve, pixel_scale=0.2):
 	"""
 	Takes in the a tuple of the g1 plus/minus objects and
 	a tuple of the g2 plus/minus objects and returns the
@@ -109,11 +109,18 @@ def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, pixel_scale
 	plus_g2 = plus_g2_gal.drawImage(scale=pixel_scale, method='no_pixel')
 	minus_g2 = minus_g2_gal.drawImage(scale=pixel_scale, method='no_pixel')
 
-	plus_moments_g1 = plus_g1.FindAdaptiveMom()
-	minus_moments_g1 = minus_g1.FindAdaptiveMom()
+	# plus_moments_g1 = plus_g1.FindAdaptiveMom()
+	# minus_moments_g1 = minus_g1.FindAdaptiveMom()
+	#
+	# plus_moments_g2 = plus_g2.FindAdaptiveMom()
+	# minus_moments_g2 = minus_g2.FindAdaptiveMom()
 
-	plus_moments_g2 = plus_g2.FindAdaptiveMom()
-	minus_moments_g2 = minus_g2.FindAdaptiveMom()
+	psf_deconvolve_image = psf_deconvolve.drawImage(scale=pixel_scale)
+
+	plus_moments_g1 = galsim.hsm.EstimateShear(plus_g1, psf_deconvolve_image)
+	minus_moments_g1 = galsim.hsm.EstimateShear(minus_g1, psf_deconvolve_image)
+	plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_deconvolve_image)
+	minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_deconvolve_image)
 
 	plus_shape_g1 = plus_moments_g1.observed_shape
 	minus_shape_g1 = minus_moments_g1.observed_shape
@@ -152,7 +159,7 @@ def metacalibration(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, del
 	as a numpy array.
 	"""
 	g1pm, g2pm = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2)
-	R = shear_response(g1pm, g2pm, delta_g1, delta_g2)
+	R = shear_response(g1pm, g2pm, delta_g1, delta_g2, psf_deconvolve)
 	print(R)
 	return R
 
