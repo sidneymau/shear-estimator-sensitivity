@@ -15,8 +15,8 @@ gal_sigma = 2.
 
 
 # first shear
-lensing_shear_g1 = 0.00
-lensing_shear_g2 = 0.00
+lensing_shear_g1 = 0.1
+lensing_shear_g2 = 0.2
 
 # calibration shears
 d_g1 = 0.001
@@ -122,23 +122,23 @@ def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_deconvo
 	plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_deconvolve_image)
 	minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_deconvolve_image)
 
-	plus_shape_g1 = plus_moments_g1.observed_shape
-	minus_shape_g1 = minus_moments_g1.observed_shape
+	# plus_shape_g1 = plus_moments_g1.observed_shape
+	# minus_shape_g1 = minus_moments_g1.observed_shape
+	#
+	# plus_shape_g2 = plus_moments_g2.observed_shape
+	# minus_shape_g2 = minus_moments_g2.observed_shape
 
-	plus_shape_g2 = plus_moments_g2.observed_shape
-	minus_shape_g2 = minus_moments_g2.observed_shape
+	e1_plus_g1 = plus_moments_g1.corrected_e1
+	e2_plus_g1 = plus_moments_g1.corrected_e2
 
-	e1_plus_g1 = plus_shape_g1.e1
-	e2_plus_g1 = plus_shape_g1.e2
+	e1_minus_g1 = minus_moments_g1.corrected_e1
+	e2_minus_g1 = minus_moments_g1.corrected_e2
 
-	e1_minus_g1 = minus_shape_g1.e1
-	e2_minus_g1 = minus_shape_g1.e2
+	e1_plus_g2 = plus_moments_g2.corrected_e1
+	e2_plus_g2 = plus_moments_g2.corrected_e2
 
-	e1_plus_g2 = plus_shape_g2.e1
-	e2_plus_g2 = plus_shape_g2.e2
-
-	e1_minus_g2 = minus_shape_g2.e1
-	e2_minus_g2 = minus_shape_g2.e2
+	e1_minus_g2 = minus_moments_g2.corrected_e1
+	e2_minus_g2 = minus_moments_g2.corrected_e2
 
 	# calculating the shear response matrix R
 	R_11 = (e1_plus_g1 - e1_minus_g1) / (2 * delta_g1)
