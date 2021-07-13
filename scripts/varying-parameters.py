@@ -86,20 +86,40 @@ def vary_parameters(storage_file):
     print("\n" * 4)
 
 
+def filter_results(results):
+    R_moffat = []
+    R_gaussian = []
+    for result in results:
+        if isinstance(result[1], galsim.moffat.Moffat):
+            R_moffat.append(result[-1])
+        if isinstance(result[1], galsim.gaussian.Gaussian):
+            R_gaussian.append(result[-1])
+
+    print(np.mean(R_moffat, axis=0))
+    print(np.mean(R_gaussian, axis=0))
+
+
+
 def main():
 
     args = sys.argv[1:]
 
     if args[0] == '-generate':
         vary_parameters('Results.pickle')
+        return 0
+
+    with open('Results.pickle', 'rb') as f:
+        stored_results = pickle.load(f)
 
     if args[0] == '-display':
-        with open('Results.pickle', 'rb') as f:
-            stored_results = pickle.load(f)
+
         print(stored_results)
         print("\n" * 2)
         print(f"Displayed metacalibration results for {len(stored_results)} different cases")
         print("\n" * 2)
+
+    if args[0] == '-filter':
+        filter_results(stored_results)
 
     return 0
 

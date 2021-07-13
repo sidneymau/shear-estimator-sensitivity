@@ -137,8 +137,8 @@ def metacalibration(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, del
 	"""
 	g1pm, g2pm = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2)
 	R = shear_response(g1pm, g2pm, delta_g1, delta_g2, psf_deconvolve)
-	print(R)
-	return R
+	# print(R)
+	return (observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2, R)
 
 
 def main():
