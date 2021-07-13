@@ -14,8 +14,10 @@ Shear estimation method (?)
 import galsim
 import numpy as np
 import metacal
+import pickle
+import sys
 
-def vary_parameters():
+def vary_parameters(storage_file):
     """
     Problem is that in creating objects to loop through, you can't replace
     more than one parameters within the object at a time
@@ -52,24 +54,47 @@ def vary_parameters():
 
     observed_galaxy = galsim.Convolve(gal, psf1)
 
-    # for deconv_psf in deconv_psf_size_variation:
-    #     for reconv_psf in reconv_psf_size_variation:
-    #         print(deconv_psf, reconv_psf)
-    #         shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, reconv_psf, dg1, dg2)
-    #         results.append((observed_galaxy, psf1, deconv_psf, reconv_psf, dg1, dg2, shear_response))
     for deconv_psf in deconv_Gaussian_size_variation + deconv_Moffat_size_variation:
-        for reconv_psf_type in reconv_Gaussian_size_variation + reconv_Moffat_size_variation:
-            for delta_g in dg:
-                print(deconv_psf, reconv_psf_type)
-                shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, reconv_psf_type, delta_g, delta_g)
-                results.append((observed_galaxy, psf1, deconv_psf, reconv_psf_type, delta_g, delta_g, shear_response))
+        for reconv_psf in reconv_Gaussian_size_variation + reconv_Moffat_size_variation:
+            print(deconv_psf, reconv_psf)
+            shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, reconv_psf, dg1, dg2)
+            results.append((observed_galaxy, psf1, deconv_psf, reconv_psf, dg1, dg2, shear_response))
 
+    # for deconv_psf in deconv_Gaussian_size_variation + deconv_Moffat_size_variation:
+    #     for reconv_psf_type in reconv_Gaussian_size_variation + reconv_Moffat_size_variation:
+    #         for delta_g in dg:
+    #             print(deconv_psf, reconv_psf_type)
+    #             shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, reconv_psf_type, delta_g, delta_g)
+    #             results.append((observed_galaxy, psf1, deconv_psf, reconv_psf_type, delta_g, delta_g, shear_response))
 
 
     # print(results)
 
+    with open(storage_file, 'wb') as f:
+        pickle.dump(results, f)
+
+    print("\n" * 4)
+    print(f"Result stored to {storage_file}")
+    print("\n" * 4)
+
+
 def main():
-    vary_parameters()
+
+    args = sys.argv[1:]
+
+    if args[0] == '-generate':
+        vary_parameters('Results.pickle')
+
+    if args[0] == '-display':
+        with open('Results.pickle', 'rb') as f:
+            stored_results = pickle.load(f)
+        print(stored_results)
+        print("\n" * 2)
+        print(f"Displayed metacalibration results for {len(stored_results)} different cases")
+        print("\n" * 2)
+
+    return 0
+
 
 
 if __name__ == '__main__':
