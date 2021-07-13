@@ -148,7 +148,7 @@ def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_deconvo
 
 	R = np.array([[R_11, R_12],[R_21, R_22]])
 
-	return R;
+	return R
 
 
 def metacalibration(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2):
