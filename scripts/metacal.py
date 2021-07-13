@@ -8,31 +8,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# Defining parameters
-gal_flux = 1.e5
-gal_r0 = 2.7
-gal_sigma = 2.
-
-
-# first shear
-lensing_shear_g1 = 0.1
-lensing_shear_g2 = 0.2
-
-# calibration shears
-d_g1 = 0.001
-d_g2 = 0.001
-
-# Defining PSFs
-psf1 = galsim.Gaussian(flux=1., sigma=1)
-# psf1 = galsim.Moffat(flux=1., beta=psf_beta, half_light_radius=psf_re)
-psf2 = psf1
-psf3 = psf1
-
-# Defining galaxy profile
-galaxy = galsim.Gaussian(flux=gal_flux, sigma=gal_sigma)
-# galaxy = galsim.Exponential(flux=gal_flux, scale_radius=gal_r0)
-
-
 
 def generate_observed_galaxy(source_galaxy, psf_blur, lensing_g1, lensing_g2):
 	"""
@@ -165,6 +140,30 @@ def metacalibration(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, del
 
 
 def main():
+
+	# Defining parameters
+	gal_flux = 1.e5
+	gal_r0 = 2.7
+	gal_sigma = 2.
+
+	# first shear
+	lensing_shear_g1 = 0.1
+	lensing_shear_g2 = 0.2
+
+	# calibration shears
+	d_g1 = 0.001
+	d_g2 = 0.001
+
+	# Defining PSFs
+	psf1 = galsim.Gaussian(flux=1., sigma=1)
+	# psf1 = galsim.Moffat(flux=1., beta=psf_beta, half_light_radius=psf_re)
+	psf2 = psf1
+	psf3 = psf1
+
+	# Defining galaxy profile
+	galaxy = galsim.Gaussian(flux=gal_flux, sigma=gal_sigma)
+	# galaxy = galsim.Exponential(flux=gal_flux, scale_radius=gal_r0)
+
 	observed = generate_observed_galaxy(galaxy, psf1, lensing_shear_g1, lensing_shear_g2)
 	metacalibration(observed, psf2, psf3, d_g1, d_g2)
 

@@ -17,16 +17,29 @@ import metacal
 
 def vary_parameters():
     """
-Problem is that in creating objects to loop through, you can't replace
-more than one parameters within the object at a time
+    Problem is that in creating objects to loop through, you can't replace
+    more than one parameters within the object at a time
 
-Could have multiple loops. One for the observed galaxy creation, one for deconvolution psf creation,
-one for reconvolution psf creation
+    Could have multiple loops. One for the observed galaxy creation, one for deconvolution psf creation,
+    one for reconvolution psf creation
+
     """
     results = []
 
     # Creating lists of different parameters to loop through
-    deconv_psf_size_variation = [galsim.Gaussian(flux=1., sigma=sig) for sig in np.arange(0.5, 2.5, 0.1)]
+
+    psf_beta = 5.
+
+    # Deconvolution PSF type and size variations
+    deconv_Gaussian_size_variation = [galsim.Gaussian(flux=1., sigma=sig) for sig in np.arange(0.5, 2.0, 0.1)]
+    deconv_Moffat_size_variation = [galsim.Moffat(beta=psf_beta, flux=1., half_light_radius=r0) for r0 in np.arange(0.8, 2.0, 0.2)]
+
+    # Reconvolution PSF type and size variations
+    reconv_Gaussian_size_variation = [galsim.Gaussian(flux=1., sigma=sig) for sig in np.arange(1.0, 3.0, 0.1)]
+    reconv_Moffat_size_variation = [galsim.Moffat(beta=psf_beta, flux=1., half_light_radius=r0) for r0 in np.arange(0.8, 2.0, 0.2)]
+
+    # different sized calibration shears
+    dg = np.arange(0.01, 0.11, 0.01)
 
     # Creating initial observed galaxy to test
     gal_flux = 1.e5
@@ -39,10 +52,17 @@ one for reconvolution psf creation
 
     observed_galaxy = galsim.Convolve(gal, psf1)
 
-    for deconv_psf in deconv_psf_size_variation:
-        shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, psf1, dg1, dg2)
-        results.append((observed_galaxy, psf1, deconv_psf, psf1, dg1, dg2, shear_response))
-
+    # for deconv_psf in deconv_psf_size_variation:
+    #     for reconv_psf in reconv_psf_size_variation:
+    #         print(deconv_psf, reconv_psf)
+    #         shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, reconv_psf, dg1, dg2)
+    #         results.append((observed_galaxy, psf1, deconv_psf, reconv_psf, dg1, dg2, shear_response))
+    for deconv_psf in deconv_Gaussian_size_variation + deconv_Moffat_size_variation:
+        for reconv_psf_type in reconv_Gaussian_size_variation + reconv_Moffat_size_variation:
+            for delta_g in dg:
+                print(deconv_psf, reconv_psf_type)
+                shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, reconv_psf_type, delta_g, delta_g)
+                results.append((observed_galaxy, psf1, deconv_psf, reconv_psf_type, delta_g, delta_g, shear_response))
 
 
 
