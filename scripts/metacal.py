@@ -132,6 +132,8 @@ def metacalibration(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, del
 	and the amounts by which to vary g1 and g2, then performs metacalibration based
 	on these parameters. The function prints and returns the shear response matrix R
 	as a numpy array.
+
+	tuples are added to the results list
 	"""
 	g1pm, g2pm = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2)
 	R = shear_response(g1pm, g2pm, delta_g1, delta_g2, psf_deconvolve)

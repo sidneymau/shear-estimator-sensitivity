@@ -16,6 +16,8 @@ import numpy as np
 import metacal
 import pickle
 import sys
+from multiprocessing import Pool
+
 
 def vary_parameters(storage_file):
     """
@@ -54,21 +56,27 @@ def vary_parameters(storage_file):
 
     observed_galaxy = galsim.Convolve(gal, psf1)
 
-    for deconv_psf in deconv_Gaussian_size_variation + deconv_Moffat_size_variation:
-        for reconv_psf in reconv_Gaussian_size_variation + reconv_Moffat_size_variation:
-            print(deconv_psf, reconv_psf)
-            shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, reconv_psf, dg1, dg2)
-            results.append((observed_galaxy, psf1, deconv_psf, reconv_psf, dg1, dg2, shear_response))
+    map_list = []
 
     # for deconv_psf in deconv_Gaussian_size_variation + deconv_Moffat_size_variation:
-    #     for reconv_psf_type in reconv_Gaussian_size_variation + reconv_Moffat_size_variation:
-    #         for delta_g in dg:
+    #     for reconv_psf in reconv_Gaussian_size_variation + reconv_Moffat_size_variation:
+    #
+    #         # print(deconv_psf, reconv_psf)
+    #         # shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, reconv_psf, dg1, dg2)
+    #         # results.append((observed_galaxy, psf1, deconv_psf, reconv_psf, dg1, dg2, shear_response))
+    #
+    #         map_list.append((observed_galaxy, deconv_psf, reconv_psf, dg1, dg2))
+
+    for deconv_psf in deconv_Gaussian_size_variation + deconv_Moffat_size_variation:
+        for reconv_psf in reconv_Gaussian_size_variation + reconv_Moffat_size_variation:
+            for delta_g in dg:
+                map_list.append((observed_galaxy, deconv_psf, reconv_psf, delta_g, delta_g))
     #             print(deconv_psf, reconv_psf_type)
     #             shear_response = metacal.metacalibration(observed_galaxy, deconv_psf, reconv_psf_type, delta_g, delta_g)
     #             results.append((observed_galaxy, psf1, deconv_psf, reconv_psf_type, delta_g, delta_g, shear_response))
 
-
-    # print(results)
+    with Pool(4) as p:
+        results = p.starmap(metacal.metacalibration, map_list)
 
     with open(storage_file, 'wb') as f:
         pickle.dump(results, f)
