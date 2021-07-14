@@ -17,6 +17,15 @@ import metacal
 import pickle
 import sys
 from multiprocessing import Pool
+import pandas as pd
+
+
+def squared_distance_metric(r):
+    """
+    Takes in a matrix r and returns its scalar "distance"
+    from 2 * identity
+    """
+    return np.sum(np.square(r - 2*np.eye(2)))
 
 
 def vary_parameters(storage_file):
@@ -95,10 +104,27 @@ def filter_results(results):
         if isinstance(result[1], galsim.gaussian.Gaussian):
             R_gaussian.append(result[-1])
 
-    print(np.mean(R_moffat, axis=0))
-    print(np.mean(R_gaussian, axis=0))
+    # print(np.mean(R_moffat, axis=0))
+    # print(np.mean(R_gaussian, axis=0))
 
+# Trying to load the results table into a Pandas DataFrame
+    results_df = pd.DataFrame(results, columns=['observed_galaxy', 'deconv_psf', 'reconv_psf', 'dg1', 'dg2', 'R'])
 
+    # entry = results_df['deconv_psf'][0]
+    # print(isinstance(entry, galsim.gaussian.Gaussian))
+
+    gaussian_rows = results_df[[isinstance(res, galsim.gaussian.Gaussian) for res in results_df['deconv_psf']]]
+    moffat_rows = results_df[[isinstance(res, galsim.moffat.Moffat) for res in results_df['deconv_psf']]]
+
+    gaussian_Rs = gaussian_rows['R']
+    gaussian_R_mean = np.sum(gaussian_Rs) / len(gaussian_Rs)
+    gaussian_R_distance = squared_distance_metric(gaussian_R_mean)
+    print(gaussian_R_distance)
+
+    moffat_Rs = moffat_rows['R']
+    moffat_R_mean = np.sum(moffat_Rs) / len(moffat_Rs)
+    moffat_R_distance = squared_distance_metric(moffat_R_mean)
+    print(moffat_R_distance)
 
 def main():
 
@@ -106,7 +132,6 @@ def main():
 
     if args[0] == '-generate':
         vary_parameters('Results.pickle')
-        return 0
 
     with open('Results.pickle', 'rb') as f:
         stored_results = pickle.load(f)
@@ -122,7 +147,6 @@ def main():
         filter_results(stored_results)
 
     return 0
-
 
 
 if __name__ == '__main__':
