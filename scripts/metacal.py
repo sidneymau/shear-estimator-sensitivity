@@ -5,7 +5,6 @@ Calculates the R shear response matrix from a galaxy
 
 import galsim
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 
@@ -137,7 +136,10 @@ def metacalibration(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, del
 	"""
 	g1pm, g2pm = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2)
 	R = shear_response(g1pm, g2pm, delta_g1, delta_g2, psf_deconvolve)
-	# print(R)
+
+	# helps to see that the multiprocessing is running
+	print(R)
+
 	return (observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2, R)
 
 
