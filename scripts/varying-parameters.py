@@ -94,6 +94,12 @@ def vary_parameters(storage_file):
     print(f"Result stored to {storage_file}")
     print("\n" * 4)
 
+def identify_profile(obj):
+    if isinstance(obj, galsim.gaussian.Gaussian):
+        return 'Gaussian'
+    if isinstance(obj, galsim.moffat.Moffat):
+        return 'Moffat'
+
 
 def filter_results(results):
     R_moffat = []
@@ -113,6 +119,11 @@ def filter_results(results):
     # entry = results_df['deconv_psf'][0]
     # print(isinstance(entry, galsim.gaussian.Gaussian))
 
+    results_df['profile_type'] = [identify_profile(obj) for obj in results_df['deconv_psf']]
+    print(results_df)
+
+    # clean this up later
+
     gaussian_rows = results_df[[isinstance(res, galsim.gaussian.Gaussian) for res in results_df['deconv_psf']]]
     moffat_rows = results_df[[isinstance(res, galsim.moffat.Moffat) for res in results_df['deconv_psf']]]
 
@@ -125,6 +136,7 @@ def filter_results(results):
     moffat_R_mean = np.sum(moffat_Rs) / len(moffat_Rs)
     moffat_R_distance = squared_distance_metric(moffat_R_mean)
     print(moffat_R_distance)
+
 
 def main():
 
