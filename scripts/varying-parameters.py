@@ -18,6 +18,7 @@ import pickle
 import sys
 from multiprocessing import Pool
 import pandas as pd
+from IPython.display import display
 
 # TODO Think of other metrics that could be used to calculate shear response matrix quality
 def squared_distance_metric(r):
@@ -43,8 +44,8 @@ def generate_combinations():
     gal = galsim.Gaussian(flux=gal_flux, sigma=gal_sigma)
 
     # initial shear TODO change this to use an "intrinsic ellipticity" parameter on generation instead of manually shearing?
-    dg1 = 0.01
-    dg2 = 0.01
+    dg1 = 0.00
+    dg2 = 0.00
 
     psf1 = galsim.Gaussian(flux=1., sigma=gal_sigma)
 
@@ -106,6 +107,46 @@ def identify_psf_profile(obj):
     if isinstance(obj, galsim.moffat.Moffat):
         return ('Moffat', obj.flux, obj.beta, obj.half_light_radius)
 
+def create_psf_parameter_columns(dataframe, object_column_name):
+    """
+    """
+
+    dataframe[object_column_name + '_type'] = [identify_psf_profile(obj)[0] for obj in dataframe[object_column_name]]
+
+    gauss_flux = []
+    gauss_sigma = []
+
+    moffat_flux = []
+    moffat_beta = []
+    moffat_hlr = []
+
+
+    for obj in dataframe[object_column_name]:
+        profile_tuple = identify_psf_profile(obj)
+        profile_type = profile_tuple[0]
+        dataframe[object_column_name + '_type'] = profile_type
+
+        if profile_type == 'Gaussian':
+            gauss_flux.append(profile_tuple[1])
+            gauss_sigma.append(profile_tuple[2])
+
+            for list in [moffat_flux, moffat_beta, moffat_hlr]:
+                list.append(np.nan)
+
+        if profile_type == 'Moffat':
+            moffat_flux.append(profile_tuple[1])
+            moffat_beta.append(profile_tuple[2])
+            moffat_hlr.append(profile_tuple[3])
+
+            for list in [gauss_flux, gauss_sigma]:
+                list.append(np.nan)
+
+    dataframe[object_column_name + '_flux'] = gauss_flux
+    dataframe[object_column_name + '_sigma'] = gauss_sigma
+    dataframe[object_column_name + '_flux'] = moffat_flux
+    dataframe[object_column_name + '_beta'] = moffat_beta
+    dataframe[object_column_name + '_half_light_radius'] = moffat_hlr
+
 
 # TODO write a function that takes in a set of rows (as a dataframe) and computes the metric on all the matrices in those rows
 
@@ -114,17 +155,18 @@ def filter_results(results):
     # Loading the results table into a Pandas DataFrame
     results_df = pd.DataFrame(results, columns=['observed_galaxy', 'deconv_psf', 'reconv_psf', 'dg1', 'dg2', 'R'])
 
-    # creating a new column 'deconv_profile_type' to mark the
-    results_df['deconv_profile_type'] = [identify_psf_profile(obj)[0] for obj in results_df['deconv_psf']]
+    create_psf_parameter_columns(results_df, 'deconv_psf')
+    create_psf_parameter_columns(results_df, 'reconv_psf')
 
-    # creating a new column 'reconv_profile'
-    results_df['reconv_profile_type'] = [identify_psf_profile(obj)[0] for obj in results_df['reconv_psf']]
 
     # TODO think about how to display different observed galaxies in the dataframe
-
-    print(results_df)
+    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        print(results_df.columns)
 
     # # clean this up later
+
+    # TODO update the below code to work with the new table
+
     # gaussian_rows = results_df[[isinstance(res, galsim.gaussian.Gaussian) for res in results_df['deconv_psf']]]
     # moffat_rows = results_df[[isinstance(res, galsim.moffat.Moffat) for res in results_df['deconv_psf']]]
     #
@@ -138,20 +180,20 @@ def filter_results(results):
     # moffat_R_distance = squared_distance_metric(moffat_R_mean)
     # print(moffat_R_distance)
 
-    # splitting Gaussian vs Moffat deconvolution psfs
-    gaussian_deconv = results_df[results_df['deconv_profile_type'] == 'Gaussian']
-    moffat_deconv = results_df[results_df['deconv_profile_type'] == 'Moffat']
-
-    # splitting Gaussian vs Moffat reconvolution psfs
-    gaussian_reconv = results_df[results_df['reconv_profile_type'] == 'Gaussian']
-    moffat_reconv = results_df[results_df['reconv_profile_type'] == 'Moffat']
-
-
-    print(gaussian_deconv)
-    print(moffat_deconv)
-
-    print(gaussian_reconv)
-    print(moffat_reconv)
+    # # splitting Gaussian vs Moffat deconvolution psfs
+    # gaussian_deconv = results_df[results_df['deconv_profile_type'] == 'Gaussian']
+    # moffat_deconv = results_df[results_df['deconv_profile_type'] == 'Moffat']
+    #
+    # # splitting Gaussian vs Moffat reconvolution psfs
+    # gaussian_reconv = results_df[results_df['reconv_profile_type'] == 'Gaussian']
+    # moffat_reconv = results_df[results_df['reconv_profile_type'] == 'Moffat']
+    #
+    #
+    # print(gaussian_deconv)
+    # print(moffat_deconv)
+    #
+    # print(gaussian_reconv)
+    # print(moffat_reconv)
 
 
 def main():
