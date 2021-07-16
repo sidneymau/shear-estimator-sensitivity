@@ -21,12 +21,21 @@ import pandas as pd
 from IPython.display import display
 
 # TODO Think of other metrics that could be used to calculate shear response matrix quality
-def squared_distance_metric(r):
+def frobenius_norm(r):
     """
-    Takes in a matrix r and returns its scalar "distance"
+    Takes in a matrix r and returns its frobenius distance
     from 2 * identity
     """
-    return np.sum(np.square(r - 2*np.eye(2)))
+    return np.sqrt(np.sum(np.square(r - 2*np.eye(2))))
+
+
+def sum_abs_differences(r):
+    """
+    Takes in a matrix r and returns the sum of the element-wise distances
+    from 2 * identity
+    """
+    return np.sum(np.absolute(r - 2*np.eye(2)))
+
 
 def generate_combinations():
     """
@@ -107,6 +116,7 @@ def identify_psf_profile(obj):
     if isinstance(obj, galsim.moffat.Moffat):
         return ('Moffat', obj.flux, obj.beta, obj.half_light_radius)
 
+
 def create_psf_parameter_columns(dataframe, object_column_name):
     """
     """
@@ -148,20 +158,44 @@ def create_psf_parameter_columns(dataframe, object_column_name):
     dataframe[object_column_name + '_half_light_radius'] = moffat_hlr
 
 
-# TODO write a function that takes in a set of rows (as a dataframe) and computes the metric on all the matrices in those rows
+def apply_metric(dataframe, metric):
+    """
+    Takes in the function metric (that acts on a 2x2 np array)
+    and adds a column to the dataframe passed in with that metric applied to
+    each row
+    """
+    dataframe[metric.__name__] = list(map(metric, dataframe['R']))
 
-def filter_results(results):
+# TODO -----
+def select_data():
+    """
+    TODO Implement a function that allows for easier selection of certain slices of data
 
+    should return a data frame (?)
+    """
+    pass
+
+
+def generate_df(results):
+    """
+    Takes in the results array and returns a pandas dataframe with columns
+    for each parameter
+    """
     # Loading the results table into a Pandas DataFrame
     results_df = pd.DataFrame(results, columns=['observed_galaxy', 'deconv_psf', 'reconv_psf', 'dg1', 'dg2', 'R'])
 
+    # creating columns for psf parameters
     create_psf_parameter_columns(results_df, 'deconv_psf')
     create_psf_parameter_columns(results_df, 'reconv_psf')
 
+    # creating columns of the metrics for shear response matrix "closeness"
+    apply_metric(results_df, frobenius_norm)
+    apply_metric(results_df, sum_abs_differences)
+
+    return results_df
 
     # TODO think about how to display different observed galaxies in the dataframe
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-        print(results_df.columns)
+
 
     # # clean this up later
 
@@ -215,7 +249,9 @@ def main():
         print("\n" * 2)
 
     if args[0] == '-filter':
-        filter_results(stored_results)
+        pd_table = generate_df(stored_results)
+        with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+            print(pd_table)
 
     return 0
 
