@@ -2,14 +2,7 @@
 Using the metacalibration function, this script loops over a variety of
 different parameters to measure the response of the shear response matrix.
 
-Parameters to vary include:
-Galaxy size
-Galaxy shape
-PSF size
-PSF shape
-Calibration shear magnitude
-
-Shear estimation method (?)
+TODO Update docstrings and parameters to PEP 8 standards
 """
 import galsim
 import numpy as np
@@ -18,7 +11,7 @@ import pickle
 import sys
 from multiprocessing import Pool
 import pandas as pd
-from IPython.display import display
+import matplotlib.pyplot as plt
 
 # TODO Think of other metrics that could be used to calculate shear response matrix quality
 def frobenius_norm(r):
@@ -120,7 +113,6 @@ def identify_psf_profile(obj):
 def create_psf_parameter_columns(dataframe, object_column_name):
     """
     """
-
     dataframe[object_column_name + '_type'] = [identify_psf_profile(obj)[0] for obj in dataframe[object_column_name]]
 
     gauss_flux = []
@@ -134,26 +126,26 @@ def create_psf_parameter_columns(dataframe, object_column_name):
     for obj in dataframe[object_column_name]:
         profile_tuple = identify_psf_profile(obj)
         profile_type = profile_tuple[0]
-        dataframe[object_column_name + '_type'] = profile_type
 
         if profile_type == 'Gaussian':
             gauss_flux.append(profile_tuple[1])
             gauss_sigma.append(profile_tuple[2])
 
-            for list in [moffat_flux, moffat_beta, moffat_hlr]:
-                list.append(np.nan)
+            for lst in [moffat_flux, moffat_beta, moffat_hlr]:
+                lst.append(np.nan)
 
         if profile_type == 'Moffat':
             moffat_flux.append(profile_tuple[1])
             moffat_beta.append(profile_tuple[2])
             moffat_hlr.append(profile_tuple[3])
 
-            for list in [gauss_flux, gauss_sigma]:
-                list.append(np.nan)
+            for lst in [gauss_flux, gauss_sigma]:
+                lst.append(np.nan)
 
-    dataframe[object_column_name + '_flux'] = gauss_flux
+
+    dataframe[object_column_name + '_gaussian_flux'] = gauss_flux
     dataframe[object_column_name + '_sigma'] = gauss_sigma
-    dataframe[object_column_name + '_flux'] = moffat_flux
+    dataframe[object_column_name + '_moffat_flux'] = moffat_flux
     dataframe[object_column_name + '_beta'] = moffat_beta
     dataframe[object_column_name + '_half_light_radius'] = moffat_hlr
 
@@ -166,14 +158,69 @@ def apply_metric(dataframe, metric):
     """
     dataframe[metric.__name__] = list(map(metric, dataframe['R']))
 
-# TODO -----
-def select_data():
+
+def plot_data(dataframe):
     """
     TODO Implement a function that allows for easier selection of certain slices of data
 
     should return a data frame (?)
     """
-    pass
+
+    # # test plotting R closeness to 2I vs. calibration shear magnitude
+    #
+    # grouped_by_dg = dataframe.groupby('dg1').mean()
+    # grouped_by_dg = grouped_by_dg[['frobenius_norm', 'sum_abs_differences']] # don't need to include dg1 because that's the table
+    # print(grouped_by_dg.index.name) # accessing name of variable indexed by
+    # print(grouped_by_dg.index.values) # to access the variable grouped by, need to do df.index.values
+    #
+    # fig, axs = plt.subplots(1, 1)
+    #
+    # frob = axs.scatter(grouped_by_dg.index.values, grouped_by_dg['frobenius_norm'])
+    # sumdif = axs.scatter(grouped_by_dg.index.values, grouped_by_dg['sum_abs_differences'])
+    # axs.set_ylim([0, 1.25])
+    # axs.set_xticks(grouped_by_dg.index.values)
+    # axs.legend([frob, sumdif], ['frobenius distance', 'sum of absolute differences', ])
+    # axs.set_title('R closeness to 2I vs. calibration shear magnitude')
+    # axs.set_xlabel('calibration shear magnitude')
+    # plt.savefig('plots/closeness_dg.png')
+    # plt.show()
+
+    # # "PSF reconvolution profile does not matter"
+    # grouped_by_reconv_type = dataframe.groupby('reconv_psf_type').mean()
+    # print(grouped_by_reconv_type) # gives some weird values that shouldn't be there. Gaussian has non Nan value in grouped_by table for reconv_psf parameters #TODO why??
+    # # grouped_by_reconv_type.to_csv('table2.csv')
+    #
+    #
+    # fig, axs = plt.subplots(1, 1)
+    # x = np.asarray([0.2, 1.0])
+    # frob = axs.bar(x, grouped_by_reconv_type['frobenius_norm'], width=0.2)
+    # sumdif = axs.bar(x + 0.2, grouped_by_reconv_type['sum_abs_differences'], width=0.2)
+    # axs.set_xticks([0.3, 1.1])
+    # axs.set_xticklabels(['Gaussian', 'Moffat'])
+    # axs.legend([frob, sumdif], ['frobenius distance', 'sum of absolute differences'])
+    # axs.set_title('R closeness to 2I vs. reconvolution psf profile')
+    # axs.set_xlabel('reconvolution PSF profile')
+    # plt.savefig('plots/closeness_reconv_psf_type.png')
+    # plt.show()
+    #
+
+    # # Seeing the effect of deconvolution PSF size (Gaussian only) on R
+    grouped_by_deconv_size_gaussian = dataframe.groupby('deconv_psf_sigma').mean()
+    fig, axs = plt.subplots(1, 1)
+
+    true_psf_sigma = 1.0
+    sigmas = grouped_by_deconv_size_gaussian.index.values
+    dist_from_true = sigmas - true_psf_sigma * np.ones(len(sigmas))
+
+    frob = axs.plot(sigmas, grouped_by_deconv_size_gaussian['frobenius_norm'], label='frobenius distance')
+    sumdif = axs.plot(sigmas, grouped_by_deconv_size_gaussian['sum_abs_differences'], label='sum of absolute differences')
+    actual = axs.vlines([true_psf_sigma], axs.get_ylim()[0], axs.get_ylim()[1], color='r', label='true PSF sigma')
+
+    axs.set_title('Closeness of R matrix to 2*I for Gaussian deconvolution PSFs of varying sizes')
+    axs.set_xlabel('Gaussian deconvolution PSF sigma')
+    axs.legend(loc=1)
+    plt.savefig('plots/deconv_gaussian_sigma.png')
+    plt.show()
 
 
 def generate_df(results):
@@ -197,39 +244,6 @@ def generate_df(results):
     # TODO think about how to display different observed galaxies in the dataframe
 
 
-    # # clean this up later
-
-    # TODO update the below code to work with the new table
-
-    # gaussian_rows = results_df[[isinstance(res, galsim.gaussian.Gaussian) for res in results_df['deconv_psf']]]
-    # moffat_rows = results_df[[isinstance(res, galsim.moffat.Moffat) for res in results_df['deconv_psf']]]
-    #
-    # gaussian_Rs = gaussian_rows['R']
-    # gaussian_R_mean = np.sum(gaussian_Rs) / len(gaussian_Rs)
-    # gaussian_R_distance = squared_distance_metric(gaussian_R_mean)
-    # print(gaussian_R_distance)
-    #
-    # moffat_Rs = moffat_rows['R']
-    # moffat_R_mean = np.sum(moffat_Rs) / len(moffat_Rs)
-    # moffat_R_distance = squared_distance_metric(moffat_R_mean)
-    # print(moffat_R_distance)
-
-    # # splitting Gaussian vs Moffat deconvolution psfs
-    # gaussian_deconv = results_df[results_df['deconv_profile_type'] == 'Gaussian']
-    # moffat_deconv = results_df[results_df['deconv_profile_type'] == 'Moffat']
-    #
-    # # splitting Gaussian vs Moffat reconvolution psfs
-    # gaussian_reconv = results_df[results_df['reconv_profile_type'] == 'Gaussian']
-    # moffat_reconv = results_df[results_df['reconv_profile_type'] == 'Moffat']
-    #
-    #
-    # print(gaussian_deconv)
-    # print(moffat_deconv)
-    #
-    # print(gaussian_reconv)
-    # print(moffat_reconv)
-
-
 def main():
 
     args = sys.argv[1:]
@@ -241,17 +255,13 @@ def main():
     with open('Results.pickle', 'rb') as f:
         stored_results = pickle.load(f)
 
-    if args[0] == '-display':
-
-        print(stored_results)
-        print("\n" * 2)
-        print(f"Displayed metacalibration results for {len(stored_results)} different cases")
-        print("\n" * 2)
 
     if args[0] == '-filter':
         pd_table = generate_df(stored_results)
-        with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-            print(pd_table)
+        pd_table.to_csv('table.csv')
+        # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        #     print(pd_table)
+        plot_data(pd_table)
 
     return 0
 
