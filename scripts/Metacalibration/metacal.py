@@ -61,7 +61,7 @@ def delta_shear(observed_gal, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2
 	return g1_plus_minus, g2_plus_minus
 
 
-def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_deconvolve, pixel_scale=0.2):
+def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_reconvolve, pixel_scale=0.2):
 	"""
 	Takes in the a tuple of the g1 plus/minus objects and
 	a tuple of the g2 plus/minus objects and returns the
@@ -89,12 +89,12 @@ def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_deconvo
 	# plus_moments_g2 = plus_g2.FindAdaptiveMom()
 	# minus_moments_g2 = minus_g2.FindAdaptiveMom()
 
-	psf_deconvolve_image = psf_deconvolve.drawImage(scale=pixel_scale)
+	psf_reconvolve_image = psf_reconvolve.drawImage(scale=pixel_scale)
 
-	plus_moments_g1 = galsim.hsm.EstimateShear(plus_g1, psf_deconvolve_image)
-	minus_moments_g1 = galsim.hsm.EstimateShear(minus_g1, psf_deconvolve_image)
-	plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_deconvolve_image)
-	minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_deconvolve_image)
+	plus_moments_g1 = galsim.hsm.EstimateShear(plus_g1, psf_reconvolve_image)
+	minus_moments_g1 = galsim.hsm.EstimateShear(minus_g1, psf_reconvolve_image)
+	plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_reconvolve_image)
+	minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_reconvolve_image)
 
 	# plus_shape_g1 = plus_moments_g1.observed_shape
 	# minus_shape_g1 = minus_moments_g1.observed_shape
@@ -125,7 +125,7 @@ def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_deconvo
 	return R
 
 
-def metacalibration(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2):
+def metacalibration(observed_galaxy_profile, true_psf, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2):
 	"""
 	Takes in an observed galaxy profile, the deconvolution and reconvolution PSFs,
 	and the amounts by which to vary g1 and g2, then performs metacalibration based
@@ -135,12 +135,12 @@ def metacalibration(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, del
 	tuples are added to the results list
 	"""
 	g1pm, g2pm = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2)
-	R = shear_response(g1pm, g2pm, delta_g1, delta_g2, psf_deconvolve)
+	R = shear_response(g1pm, g2pm, delta_g1, delta_g2, psf_reconvolve)
 
 	# helps to see that the multiprocessing is running
 	print(R)
 
-	return (observed_galaxy_profile, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2, R)
+	return (observed_galaxy_profile, true_psf, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2, R)
 
 
 def main():
