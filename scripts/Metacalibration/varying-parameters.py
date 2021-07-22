@@ -12,6 +12,8 @@ import sys
 from multiprocessing import Pool
 import pandas as pd
 import matplotlib.pyplot as plt
+import os.path
+from os import path
 
 # TODO Think of other metrics that could be used to calculate shear response matrix quality
 def frobenius_norm(r):
@@ -57,17 +59,18 @@ def generate_combinations():
     psf_beta = 5.
 
     # Deconvolution PSF type and size variations
-    deconv_Gaussian_size_variation = [galsim.Gaussian(flux=1., sigma=sig) for sig in np.arange(0.5, 2.0, 0.1)]
+    deconv_Gaussian_size_variation = [galsim.Gaussian(flux=1., sigma=sig) for sig in 1/2.355 * np.arange(0.5, 1.3, 0.1)]
     deconv_Moffat_size_variation = [galsim.Moffat(beta=psf_beta, flux=1., half_light_radius=r0) for r0 in
                                     np.arange(0.8, 2.0, 0.2)]
 
     # Reconvolution PSF type and size variations
-    reconv_Gaussian_size_variation = [galsim.Gaussian(flux=1., sigma=sig) for sig in np.arange(1.0, 3.0, 0.1)]
+    reconv_Gaussian_size_variation = [galsim.Gaussian(flux=1., sigma=sig) for sig in 1/2.355 * np.arange(0.5, 1.3, 0.1)]
     reconv_Moffat_size_variation = [galsim.Moffat(beta=psf_beta, flux=1., half_light_radius=r0) for r0 in
                                     np.arange(0.8, 2.0, 0.2)]
 
     # different sized calibration shears
-    dg = np.arange(0.01, 0.11, 0.01)
+    # dg = np.arange(0.01, 0.11, 0.01)
+    dg = [0.01] # same as Sheldon and Huff Value
 
     # Creating long master list of all combinations to loop through
     combination_list = []
@@ -204,22 +207,76 @@ def plot_data(dataframe):
     # plt.show()
     #
 
-    # # Seeing the effect of deconvolution PSF size (Gaussian only) on R
-    grouped_by_deconv_size_gaussian = dataframe.groupby('deconv_psf_sigma').mean()
-    fig, axs = plt.subplots(1, 1)
+    # # # Seeing the effect of deconvolution PSF size (Gaussian only) on R
+    # grouped_by_deconv_size_gaussian_mean = dataframe.groupby('deconv_psf_sigma').mean()
+    # grouped_by_deconv_size_gaussian_stdev = dataframe.groupby('deconv_psf_sigma').std()
+    #
+    # fig, axs = plt.subplots(1, 2, figsize=(16, 8))
+    #
+    true_psf_sigma = 1.0 / 2.355
+    # sigmas = grouped_by_deconv_size_gaussian_mean.index.values
+    # dist_from_true = sigmas - true_psf_sigma * np.ones(len(sigmas))
+    #
+    # # frob = axs[0].plot(sigmas, grouped_by_deconv_size_gaussian_mean['frobenius_norm'], label='frobenius distance')
+    # # sumdif = axs[1].plot(sigmas, grouped_by_deconv_size_gaussian_mean['sum_abs_differences'], label='sum of absolute differences')
+    # frob_stdevs = axs[0].errorbar(sigmas, grouped_by_deconv_size_gaussian_mean['frobenius_norm'], yerr=grouped_by_deconv_size_gaussian_stdev['frobenius_norm'], capsize=5.0, label='frobenius distance')
+    # sumdif_stdevs = axs[1].errorbar(sigmas, grouped_by_deconv_size_gaussian_mean['sum_abs_differences'], yerr=grouped_by_deconv_size_gaussian_stdev['sum_abs_differences'], capsize=5.0, label='sum of absolute differences')
+    #
+    # for ax in axs:
+    #     actual = ax.axvline(true_psf_sigma, 0, 1, color='r', label='true PSF sigma')
+    #     ax.legend(loc=1)
+    #
+    # fig.suptitle('Closeness of R matrix to 2*I for Gaussian deconvolution PSFs of varying sizes')
+    #
+    # plt.savefig('plots/deconv_gaussian_sigma.png')
+    # plt.show()
 
-    true_psf_sigma = 1.0
-    sigmas = grouped_by_deconv_size_gaussian.index.values
-    dist_from_true = sigmas - true_psf_sigma * np.ones(len(sigmas))
+    ## Violin plots for the same data
+    # print(dataframe)
+    gaussian_subframe = dataframe[dataframe['deconv_psf_type'] == 'Gaussian']
+    gaussian_subframe = gaussian_subframe[dataframe['reconv_psf_type'] == 'Gaussian']
+    # print(gaussian_subframe)
+    sigma_distribution = gaussian_subframe[['deconv_psf_sigma', 'frobenius_norm', 'sum_abs_differences']]
+    # print(sigma_distribution)
 
-    frob = axs.plot(sigmas, grouped_by_deconv_size_gaussian['frobenius_norm'], label='frobenius distance')
-    sumdif = axs.plot(sigmas, grouped_by_deconv_size_gaussian['sum_abs_differences'], label='sum of absolute differences')
-    actual = axs.vlines([true_psf_sigma], axs.get_ylim()[0], axs.get_ylim()[1], color='r', label='true PSF sigma')
+    grouped = sigma_distribution.groupby(by='deconv_psf_sigma')
+    values = []
+    frob_dataset = []
+    sumdif_dataset = []
+    for name, group in grouped:
+        print(name)
+        values.append(name)
+        frob_dataset.append(group['frobenius_norm'].to_numpy())
+        sumdif_dataset.append(group['sum_abs_differences'].to_numpy())
 
-    axs.set_title('Closeness of R matrix to 2*I for Gaussian deconvolution PSFs of varying sizes')
-    axs.set_xlabel('Gaussian deconvolution PSF sigma')
-    axs.legend(loc=1)
-    plt.savefig('plots/deconv_gaussian_sigma.png')
+
+
+    fig, axs = plt.subplots(1, 2, figsize = (16, 8))
+    width = 0.1
+    axs[0].violinplot(frob_dataset, positions=values, showmeans=True, widths=np.ones(len(values))*width)
+    axs[1].violinplot(sumdif_dataset, positions = values, showmeans=True, widths=np.ones(len(values))*width)
+    axs[0].set_title('Frobenius Distance')
+    axs[1].set_title('Sum of element-wise absolute differences')
+
+    for ax in axs:
+        actual = ax.axvline(true_psf_sigma, 0, 1, color='orange', label='true PSF sigma')
+        ax.legend()
+        ax.set_xlabel('Deconvolution PSF sigmas')
+
+    fig.suptitle('Closeness of R to 2I for different deconvolution PSF sizes')
+
+    version = 1
+
+    if not os.path.exists('plots/violinplot.png'):
+        plt.savefig('plots/violinplot.png')
+
+    else:
+        while os.path.exists('plots/violinplot' + '(' + str(version) + ').png'):
+            version += 1
+
+        plt.savefig('plots/violinplot' + '(' + str(version) + ').png')
+
+
     plt.show()
 
 
@@ -250,9 +307,9 @@ def main():
 
     if args[0] == '-generate':
         combinations = generate_combinations()
-        vary_parameters(combinations, 'Results.pickle')
+        vary_parameters(combinations, 'Results2.pickle')
 
-    with open('Results.pickle', 'rb') as f:
+    with open('Results2.pickle', 'rb') as f:
         stored_results = pickle.load(f)
 
 
