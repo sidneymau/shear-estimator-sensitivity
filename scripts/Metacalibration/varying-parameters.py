@@ -13,7 +13,6 @@ from multiprocessing import Pool
 import pandas as pd
 import matplotlib.pyplot as plt
 import os.path
-from os import path
 
 # TODO Think of other metrics that could be used to calculate shear response matrix quality
 def frobenius_norm(r):
@@ -162,6 +161,15 @@ def apply_metric(dataframe, metric):
     dataframe[metric.__name__] = list(map(metric, dataframe['R']))
 
 
+def element_columns(dataframe):
+    """
+    Adds as columns the 4 individual elements of the shear response matrix
+    """
+    for i in range(0, 2):
+        for j in range(0, 2):
+            dataframe['R_' + str(i + 1) + str(j + 1)] = list(map(lambda r: r[i][j], dataframe['R']))
+
+
 def plot_data(dataframe):
     """
     TODO Implement a function that allows for easier selection of certain slices of data
@@ -296,6 +304,10 @@ def generate_df(results):
     apply_metric(results_df, frobenius_norm)
     apply_metric(results_df, sum_abs_differences)
 
+    # creating columns for the individual shear response matrix elements
+    element_columns(results_df)
+
+    print(results_df.columns)
     return results_df
 
     # TODO think about how to display different observed galaxies in the dataframe
