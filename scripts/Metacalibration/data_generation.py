@@ -30,9 +30,10 @@ def sum_abs_differences(r):
     """
     return np.sum(np.absolute(r - 2*np.eye(2)))
 
-def sanity_checks():
 
-    # Loop over one observed galaxy only (to test)
+ def sanity_check_1():
+    # TODO change units to be in fwhm
+
     gal_flux = 1.e5
     gal_sigma = 2.
     gal = galsim.Gaussian(flux=gal_flux, sigma=gal_sigma)
@@ -41,13 +42,10 @@ def sanity_checks():
     dg1 = 0.00
     dg2 = 0.00
 
-    psf1 = galsim.Gaussian(flux=1., sigma=gal_sigma)
-
-    observed_galaxy = metacal.generate_observed_galaxy(gal, psf1, dg1, dg2)
-
-    # Original PSF type and size variations
+    # Original PSF size / galaxy size variations
 
     true_psf_vary_sigma = [galsim.Gaussian(flux=1., sigma=sig) for sig in 1 / 2.355 * np.arange(0.5, 1.3, 0.1)]
+
     observed_galaxy_variation = [metacal.generate_observed_galaxy(gal, psf, dg1, dg2) for psf in true_psf_vary_sigma]
 
     # Deconvolution PSF type and size variations
@@ -65,9 +63,34 @@ def sanity_checks():
     combination_list = []
     for i in range(len(observed_galaxy_variation)):
         for delta_g in dg:
-            combination_list.append((observed_galaxy, true_psf_vary_sigma[i], deconv_Gaussian_size_variation[i], reconv_Gaussian_size_variation[i], delta_g, delta_g))
+            combination_list.append((observed_galaxy_variation[i], true_psf_vary_sigma[i], deconv_Gaussian_size_variation[i], reconv_Gaussian_size_variation[i], delta_g, delta_g))
 
     return combination_list
+
+
+def sanity_check_2():
+
+    gal_flux = 1.e5
+    dg = [0.01]
+    dilation_factor = 1.2
+
+    gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
+    true_psf_sigmas = 1/2.355 * np.arange(0.5, 1.3, 0.1)  # 0.5 - 1.3 arcseconds fwhm converted to sigma
+    reconv_psf_sigmas = dilation_factor * true_psf_sigmas
+
+    combinations = []
+    for ratio in gal_psf_ratios:        # gal_sigma / psf_sigma should be equal to ratio
+        for i in range(len(true_psf_sigmas)):
+            for delta_g in dg:
+                gal = galsim.Gaussian(flux=gal_flux, sigma=true_psf_sigmas[i] * ratio)
+                true_psf = galsim.Gaussian(flux=gal_flux, sigma=true_psf_sigmas[i])
+                deconv_psf = true_psf
+                reconv_psf = galsim.Gaussian(flux=gal_flux, sigma=reconv_psf_sigmas[i])
+                observed_galaxy = galsim.Convolve(gal, true_psf)
+
+                combinations.append((observed_galaxy, true_psf, deconv_psf, reconv_psf, delta_g, delta_g))
+
+    return combinations
 
 
 def generate_combinations():
@@ -208,14 +231,16 @@ def element_columns(dataframe):
         for j in range(0, 2):
             dataframe['R_' + str(i + 1) + str(j + 1)] = list(map(lambda r: r[i][j], dataframe['R']))
 
-# TODO
+
 def true_psf_columns(dataframe):
 
     dataframe['true_psf_sigma'] = list(map(lambda obj: obj.sigma, dataframe['true_psf']))
     return dataframe
 
 
-
+# TODO add this column to the dataframe, trace the parameter through the code
+def gal_psf_ratio(dataframe):
+    pass
 
 def generate_df(results):
     """
@@ -251,7 +276,8 @@ def main():
     if args[0] == '-generate':
 
         # combinations = generate_combinations()
-        combinations = sanity_checks()
+        # combinations = sanity_check1()
+        combinations = sanity_check_2()
 
         if not os.path.exists('Results.pickle'):
             vary_parameters(combinations, 'Results.pickle')
@@ -277,7 +303,6 @@ def main():
         pd_table.to_csv('table.csv')
         # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         #     print(pd_table)
-        plot_data(pd_table)
 
     return 0
 
