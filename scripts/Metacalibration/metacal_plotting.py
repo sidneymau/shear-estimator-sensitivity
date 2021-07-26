@@ -143,10 +143,10 @@ def plot_R_elements(dataframe, xaxis_column, gal_sigma_column):
 
     # fixing plotting scales
     diagmax = np.max([np.max(dataframe['R_11']), np.max(dataframe['R_22'])])
-    print(diagmax)
+    # print(diagmax)
     diagmin = np.min([np.min(dataframe['R_11']), np.min(dataframe['R_22'])])
     offdiagmax = np.max([np.max(dataframe['R_21']), np.max(dataframe['R_12'])])
-    print(offdiagmax)
+    # print(offdiagmax)
     offdiagmin = np.min([np.min(dataframe['R_21']), np.min(dataframe['R_12'])])
 
     # # splitting out by color
@@ -175,7 +175,7 @@ def plot_R_elements(dataframe, xaxis_column, gal_sigma_column):
     cbaxes = fig.add_axes([0.2, 0.1, 0.6, 0.01])
     cb = fig.colorbar(im, ax=axs[:], orientation='horizontal', shrink=0.5, cax=cbaxes)
     plt.subplots_adjust(hspace=0.3, wspace=0.4, bottom=0.2)
-    cb.set_label('original galaxy sigma [arcseconds]')
+    cb.set_label(gal_sigma_column + ' [arcseconds]')
     fig.suptitle(f'Shear response matrix element values vs {xaxis_column}')
 
     save_fig_to_plots(xaxis_column)
@@ -223,10 +223,14 @@ def sanity_check_2(dataframe):
     # print(dataframe)
     # print(dataframe.columns)
     # print(dataframe['gal_psf_ratio'])
-
+    print(dataframe.columns)
     plot_R_elements(dataframe, 'gal_psf_ratio', 'gal_sigma')
-    plt.show()
+    
 
+
+def all_moffat(dataframe):
+    print(dataframe.columns)
+    plot_R_elements(dataframe, 'gal_psf_ratio', 'gal_fwhm')
 
 def generate_images(dataframe):
     """
@@ -291,10 +295,6 @@ def generate_images(dataframe):
     print(image_dict)
 
 
-
-
-    pass
-
 def master_plotting(dataframe):
 
     ## Calling different plotting functions ##
@@ -303,8 +303,10 @@ def master_plotting(dataframe):
     # r_vs_gaussian_deconv_psf_size(dataframe)
     # r_vs_gaussian_deconv_psf_size_violin(dataframe)
     # sanity_check_1(dataframe)
-    sanity_check_2(dataframe)
+    # sanity_check_2(dataframe)
+    all_moffat(dataframe)
     # generate_images(dataframe)
+
 
 def pickle_to_modified_dataframe(filename):
 

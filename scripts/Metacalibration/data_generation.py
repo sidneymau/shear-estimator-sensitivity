@@ -93,6 +93,32 @@ def sanity_check_2():
     return combinations
 
 
+def all_moffat_tests():
+    gal_flux = 1.e5
+    dg = [0.01]
+    dilation_factor = 1.2
+    psf_beta = 5.
+
+    gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
+    true_psf_fwhm =  np.arange(0.5, 1.3, 0.1)
+    reconv_psf_fwhm = dilation_factor * true_psf_fwhm
+
+    combinations = []
+    for ratio in gal_psf_ratios:        # gal_sigma / psf_sigma should be equal to ratio
+        for i in range(len(true_psf_fwhm)):
+            for delta_g in dg:
+                original_gal = galsim.Gaussian(flux=gal_flux, fwhm=true_psf_fwhm[i] * ratio)
+                true_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=true_psf_fwhm[i])
+                deconv_psf = true_psf
+                reconv_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=reconv_psf_fwhm[i])
+                observed_galaxy = galsim.Convolve(original_gal, true_psf)
+
+                combinations.append((observed_galaxy, original_gal, true_psf, deconv_psf, reconv_psf, delta_g, delta_g))
+
+    return combinations
+
+
+
 def generate_combinations():
     """
     Generates a list of different combinations of
@@ -231,20 +257,28 @@ def element_columns(dataframe):
         for j in range(0, 2):
             dataframe['R_' + str(i + 1) + str(j + 1)] = list(map(lambda r: r[i][j], dataframe['R']))
 
-
-def true_psf_columns(dataframe):
+# TODO consolidate these functions, make them more modular
+def true_psf_column_gaussian(dataframe):
 
     dataframe['true_psf_sigma'] = list(map(lambda obj: obj.sigma, dataframe['true_psf']))
     return dataframe
 
 
+def true_psf_column_moffat(dataframe):
+    dataframe['true_psf_fwhm'] = list(map(lambda obj: obj.fwhm, dataframe['true_psf']))
+
 # TODO add this column to the dataframe, trace the parameter through the code
-def gal_psf_ratio(dataframe):
+def gal_psf_ratio_gaussian(dataframe):
 
     dataframe['gal_sigma'] = list(map(lambda gal: gal.sigma, dataframe['original_gal']))
     dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['true_psf_sigma']
 
     return dataframe
+
+def gal_psf_ratio_moffat(dataframe):
+    dataframe['gal_fwhm'] = list(map(lambda gal: gal.fwhm, dataframe['original_gal']))
+    dataframe['gal_psf_ratio'] = dataframe['gal_fwhm'] / dataframe['true_psf_fwhm']    
+
 
 def generate_df(results):
     """
@@ -266,14 +300,14 @@ def generate_df(results):
     element_columns(results_df)
 
     # creating a column for the sigma of the true psf
-    true_psf_columns(results_df)
+    # true_psf_column_gaussian(results_df)
+    true_psf_column_moffat(results_df)
 
-    # creating columns for original_gal sigma and gal/psf size ration
-    gal_psf_ratio(results_df)
+    # creating columns for original_gal sigma and gal/psf size ratio
+    # gal_psf_ratio_gaussian(results_df)
+    gal_psf_ratio_moffat(results_df)
 
     return results_df
-
-    # TODO think about how to display different observed galaxies in the dataframe
 
 
 def main():
@@ -291,22 +325,23 @@ def main():
 
         # combinations = generate_combinations()
         # combinations = sanity_check1()
-        combinations = sanity_check_2()
+        # combinations = sanity_check_2()
+        combinations = all_moffat_tests()
 
-        if not os.path.exists('pickles/' + filename_to_create):
-            vary_parameters(combinations, filename_to_create)
+        if not os.path.exists('pickles/' + filename_to_create + '.pickle'):
+            vary_parameters(combinations, 'pickles/' + filename_to_create + '.pickle')
 
         else:
             version = 1
             while os.path.exists('pickles/' + filename_to_create + '(' + str(version) + ').pickle'):
                 version += 1
 
-        vary_parameters(combinations, 'pickles/' + filename_to_create + '(' + str(version) + ').pickle')
+            vary_parameters(combinations, 'pickles/' + filename_to_create + '(' + str(version) + ').pickle')
 
         return 0
 
 
-
+    ## Old Code ##
 
     with open('Results2.pickle', 'rb') as f:
         stored_results = pickle.load(f)
