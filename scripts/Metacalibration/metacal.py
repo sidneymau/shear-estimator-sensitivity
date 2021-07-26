@@ -7,7 +7,7 @@ import galsim
 import numpy as np
 
 
-
+ 
 def generate_observed_galaxy(source_galaxy, psf_blur, lensing_g1, lensing_g2):
 	"""
 	Takes in a source_galaxy and psf_blur GalSim objects as well as the parameters
@@ -61,7 +61,7 @@ def delta_shear(observed_gal, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2
 	return g1_plus_minus, g2_plus_minus
 
 
-def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_reconvolve, pixel_scale=0.2):
+def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_reconvolve, pixel_scale=0.2): #TODO change this back to 0.2
 	"""
 	Takes in the a tuple of the g1 plus/minus objects and
 	a tuple of the g2 plus/minus objects and returns the
@@ -125,7 +125,7 @@ def shear_response(g1_plus_minus, g2_plus_minus, delta_g1, delta_g2, psf_reconvo
 	return R
 
 
-def metacalibration(observed_galaxy_profile, true_psf, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2):
+def metacalibration(observed_galaxy_profile, original_gal, true_psf, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2):
 	"""
 	Takes in an observed galaxy profile, the deconvolution and reconvolution PSFs,
 	and the amounts by which to vary g1 and g2, then performs metacalibration based
@@ -140,7 +140,7 @@ def metacalibration(observed_galaxy_profile, true_psf, psf_deconvolve, psf_recon
 	# helps to see that the multiprocessing is running
 	print(R)
 
-	return (observed_galaxy_profile, true_psf, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2, R)
+	return (observed_galaxy_profile, original_gal, true_psf, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2, R)
 
 
 def main():

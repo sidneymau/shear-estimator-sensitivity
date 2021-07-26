@@ -31,7 +31,7 @@ def sum_abs_differences(r):
     return np.sum(np.absolute(r - 2*np.eye(2)))
 
 
- def sanity_check_1():
+def sanity_check_1():
     # TODO change units to be in fwhm
 
     gal_flux = 1.e5
@@ -82,13 +82,13 @@ def sanity_check_2():
     for ratio in gal_psf_ratios:        # gal_sigma / psf_sigma should be equal to ratio
         for i in range(len(true_psf_sigmas)):
             for delta_g in dg:
-                gal = galsim.Gaussian(flux=gal_flux, sigma=true_psf_sigmas[i] * ratio)
+                original_gal = galsim.Gaussian(flux=gal_flux, sigma=true_psf_sigmas[i] * ratio)
                 true_psf = galsim.Gaussian(flux=gal_flux, sigma=true_psf_sigmas[i])
                 deconv_psf = true_psf
                 reconv_psf = galsim.Gaussian(flux=gal_flux, sigma=reconv_psf_sigmas[i])
-                observed_galaxy = galsim.Convolve(gal, true_psf)
+                observed_galaxy = galsim.Convolve(original_gal, true_psf)
 
-                combinations.append((observed_galaxy, true_psf, deconv_psf, reconv_psf, delta_g, delta_g))
+                combinations.append((observed_galaxy, original_gal, true_psf, deconv_psf, reconv_psf, delta_g, delta_g))
 
     return combinations
 
@@ -240,7 +240,11 @@ def true_psf_columns(dataframe):
 
 # TODO add this column to the dataframe, trace the parameter through the code
 def gal_psf_ratio(dataframe):
-    pass
+
+    dataframe['gal_sigma'] = list(map(lambda gal: gal.sigma, dataframe['original_gal']))
+    dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['true_psf_sigma']
+
+    return dataframe
 
 def generate_df(results):
     """
@@ -248,7 +252,7 @@ def generate_df(results):
     for each parameter
     """
     # Loading the results table into a Pandas DataFrame
-    results_df = pd.DataFrame(results, columns=['observed_galaxy', 'true_psf', 'deconv_psf', 'reconv_psf', 'dg1', 'dg2', 'R'])
+    results_df = pd.DataFrame(results, columns=['observed_galaxy', 'original_gal', 'true_psf', 'deconv_psf', 'reconv_psf', 'dg1', 'dg2', 'R'])
 
     # creating columns for psf parameters
     create_psf_parameter_columns(results_df, 'deconv_psf')
@@ -264,6 +268,9 @@ def generate_df(results):
     # creating a column for the sigma of the true psf
     true_psf_columns(results_df)
 
+    # creating columns for original_gal sigma and gal/psf size ration
+    gal_psf_ratio(results_df)
+
     return results_df
 
     # TODO think about how to display different observed galaxies in the dataframe
@@ -273,21 +280,28 @@ def main():
 
     args = sys.argv[1:]
 
+    if len(args) != 2:
+        print("Error: missing arguments")
+        print("python data_generation.py [filename to create]")
+        return 1
+
     if args[0] == '-generate':
+
+        filename_to_create = args[1]
 
         # combinations = generate_combinations()
         # combinations = sanity_check1()
         combinations = sanity_check_2()
 
-        if not os.path.exists('Results.pickle'):
-            vary_parameters(combinations, 'Results.pickle')
+        if not os.path.exists('pickles/' + filename_to_create):
+            vary_parameters(combinations, filename_to_create)
 
         else:
             version = 1
-            while os.path.exists('Results' + '(' + str(version) + ').pickle'):
+            while os.path.exists('pickles/' + filename_to_create + '(' + str(version) + ').pickle'):
                 version += 1
 
-        vary_parameters(combinations, 'Results' + '(' + str(version) + ').pickle')
+        vary_parameters(combinations, 'pickles/' + filename_to_create + '(' + str(version) + ').pickle')
 
         return 0
 
