@@ -58,10 +58,13 @@ def delta_shear(observed_gal, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2
 	# g1_plus_minus = (sheared_plus_g1, sheared_minus_g1)
 	# g2_plus_minus = (sheared_plus_g2, sheared_minus_g2)
 
-	return g1_plus_minus, g2_plus_minus
+	# adding noshear reconvolved for testing
+	reconvolved_noshear = galsim.Convolve(deconvolved, psf_reconvolve)
+
+	return g1_plus_minus, g2_plus_minus, reconvolved_noshear
 
 
-def shear_response(g1_plus_minus, g2_plus_minus, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale): #TODO change this back to 0.2
+def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale): #TODO change this back to 0.2
 	"""
 	Takes in the a tuple of the g1 plus/minus objects and
 	a tuple of the g2 plus/minus objects and returns the
@@ -122,7 +125,15 @@ def shear_response(g1_plus_minus, g2_plus_minus, cshear_delta_g1, cshear_delta_g
 
 	R = np.array([[R_11, R_12],[R_21, R_22]])
 
-	return R
+	# Calculating shape of reconvolved_no_shear to test accuracy of shear response
+	noshear_image = reconvolved_noshear.drawImage(scale=pixel_scale, method='no_pixel')
+	noshear_moments = galsim.hsm.EstimateShear(noshear_image, psf_shearestimator_image, shear_est=shearestimator)
+	noshear_e1 = noshear_moments.corrected_e1
+	noshear_e2 = noshear_moments.corrected_e2
+
+
+
+	return R, noshear_e1, noshear_e2
 
 
 def metacalibration(original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, psf_deconvolve, psf_reconvolve, psf_shearestimator, cshear_delta_g1, cshear_delta_g2, shearestimator, pixel_scale):
@@ -137,14 +148,13 @@ def metacalibration(original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, ps
 	cosmic_sheared_galaxy = original_gal.shear(g1=oshear_delta_g1, g2=oshear_delta_g2)
 	observed_galaxy_profile = generate_observed_galaxy(cosmic_sheared_galaxy, true_psf, oshear_delta_g1, oshear_delta_g2)
 
-
-	g1pm, g2pm = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, cshear_delta_g1, cshear_delta_g2)
-	R = shear_response(g1pm, g2pm, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale)
+	g1pm, g2pm, reconvolved_noshear = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, cshear_delta_g1, cshear_delta_g2)
+	R, noshear_e1, noshear_e2 = shear_response(g1pm, g2pm, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale)
 
 	# helps to see that the multiprocessing is running
 	print(R)
 
-	return (original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, psf_deconvolve, psf_reconvolve, psf_shearestimator, cshear_delta_g1, cshear_delta_g2, shearestimator, pixel_scale, R) 
+	return (original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, psf_deconvolve, psf_reconvolve, psf_shearestimator, cshear_delta_g1, cshear_delta_g2, shearestimator, pixel_scale, R, reconvolved_noshear, noshear_e1, noshear_e2) 
 
 
 def main():

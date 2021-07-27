@@ -2,6 +2,8 @@
 Using the metacalibration function, this script loops over a variety of
 different parameters to measure the response of the shear response matrix.
 
+It pickles a list of tuples with the galsim objects and relevant parameters to disk.
+
 TODO Update docstrings and parameters to PEP 8 standards
 """
 import galsim
@@ -15,60 +17,10 @@ import matplotlib.pyplot as plt
 import os.path
 
 # TODO Think of other metrics that could be used to calculate shear response matrix quality
-def frobenius_norm(r):
-    """
-    Takes in a matrix r and returns its frobenius distance
-    from 2 * identity
-    """
-    return np.sqrt(np.sum(np.square(r - 2*np.eye(2))))
 
 
-def sum_abs_differences(r):
-    """
-    Takes in a matrix r and returns the sum of the element-wise distances
-    from 2 * identity
-    """
-    return np.sum(np.absolute(r - 2*np.eye(2)))
-
-
-def sanity_check_1():
-    # TODO change units to be in fwhm
-
-    gal_flux = 1.e5
-    gal_sigma = 2.
-    gal = galsim.Gaussian(flux=gal_flux, sigma=gal_sigma)
-
-    # initial shear
-    dg1 = 0.00
-    dg2 = 0.00
-
-    # Original PSF size / galaxy size variations
-
-    true_psf_vary_sigma = [galsim.Gaussian(flux=1., sigma=sig) for sig in 1 / 2.355 * np.arange(0.5, 1.3, 0.1)]
-
-    observed_galaxy_variation = [metacal.generate_observed_galaxy(gal, psf, dg1, dg2) for psf in true_psf_vary_sigma]
-
-    # Deconvolution PSF type and size variations
-    deconv_Gaussian_size_variation = [galsim.Gaussian(flux=1., sigma=sig) for sig in
-                                      1 / 2.355 * np.arange(0.5, 1.3, 0.1)]
-
-    # Reconvolution PSF type and size variations  TODO Look up by how much the reconvolution PSF is dilated
-    dilation_factor = 1.2
-    reconv_Gaussian_size_variation = [galsim.Gaussian(flux=1., sigma=sig) for sig in
-                                      1 / 2.355 * dilation_factor * np.arange(0.5, 1.3, 0.1)]
-
-    dg = [0.01]  # same as Sheldon and Huff value
-
-    # Creating long master list of all combinations to loop through
-    combination_list = []
-    for i in range(len(observed_galaxy_variation)):
-        for delta_g in dg:
-            combination_list.append((observed_galaxy_variation[i], true_psf_vary_sigma[i], deconv_Gaussian_size_variation[i], reconv_Gaussian_size_variation[i], delta_g, delta_g))
-
-    return combination_list
-
-
-def sanity_check_2():
+# START COMBINATION-GENERATION FUNCTIONS
+def all_gaussian_combinations():
 
     gal_flux = 1.e5
     dg = [0.01]
@@ -88,12 +40,12 @@ def sanity_check_2():
                 reconv_psf = galsim.Gaussian(flux=gal_flux, sigma=reconv_psf_sigmas[i])
                 observed_galaxy = galsim.Convolve(original_gal, true_psf)
 
-                combinations.append((observed_galaxy, original_gal, true_psf, deconv_psf, reconv_psf, delta_g, delta_g))
+                combinations.append((original_gal, 0.0, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, delta_g, delta_g, 'REGAUSS', 0.02))
 
     return combinations
 
 
-def all_moffat_tests():
+def moffat_psf_combinations():
     gal_flux = 1.e5
     dg = [0.01]
     dilation_factor = 1.2
@@ -166,7 +118,7 @@ def generate_combinations():
 
     return combination_list
 
-
+# END COMBINATION-GENERATION FUNCTIONS
 def vary_parameters(combo_list, storage_file):
     """
     """
@@ -184,141 +136,13 @@ def vary_parameters(combo_list, storage_file):
     print("\n" * 4)
 
 
-def identify_psf_profile(obj):
-    """
-    Takes in a galsim PSF object and returns a tuple
-    of its type and relevant parameters
-    """
-
-    # TODO incorporate more types of PSF profiles
-
-    if isinstance(obj, galsim.gaussian.Gaussian):
-        return ('Gaussian', obj.flux, obj.sigma)
-    if isinstance(obj, galsim.moffat.Moffat):
-        return ('Moffat', obj.flux, obj.beta, obj.half_light_radius)
-
-
-def create_psf_parameter_columns(dataframe, object_column_name):
-    """
-    """
-    dataframe[object_column_name + '_type'] = [identify_psf_profile(obj)[0] for obj in dataframe[object_column_name]]
-
-    gauss_flux = []
-    gauss_sigma = []
-
-    moffat_flux = []
-    moffat_beta = []
-    moffat_hlr = []
-
-
-    for obj in dataframe[object_column_name]:
-        profile_tuple = identify_psf_profile(obj)
-        profile_type = profile_tuple[0]
-
-        if profile_type == 'Gaussian':
-            gauss_flux.append(profile_tuple[1])
-            gauss_sigma.append(profile_tuple[2])
-
-            for lst in [moffat_flux, moffat_beta, moffat_hlr]:
-                lst.append(np.nan)
-
-        if profile_type == 'Moffat':
-            moffat_flux.append(profile_tuple[1])
-            moffat_beta.append(profile_tuple[2])
-            moffat_hlr.append(profile_tuple[3])
-
-            for lst in [gauss_flux, gauss_sigma]:
-                lst.append(np.nan)
-
-
-    dataframe[object_column_name + '_gaussian_flux'] = gauss_flux
-    dataframe[object_column_name + '_sigma'] = gauss_sigma
-    dataframe[object_column_name + '_moffat_flux'] = moffat_flux
-    dataframe[object_column_name + '_beta'] = moffat_beta
-    dataframe[object_column_name + '_half_light_radius'] = moffat_hlr
-
-
-def apply_metric(dataframe, metric):
-    """
-    Takes in the function metric (that acts on a 2x2 np array)
-    and adds a column to the dataframe passed in with that metric applied to
-    each row
-    """
-    dataframe[metric.__name__] = list(map(metric, dataframe['R']))
-
-
-def element_columns(dataframe):
-    """
-    Adds as columns the 4 individual elements of the shear response matrix
-    """
-    for i in range(0, 2):
-        for j in range(0, 2):
-            dataframe['R_' + str(i + 1) + str(j + 1)] = list(map(lambda r: r[i][j], dataframe['R']))
-    
-    return dataframe
-
-
-# TODO consolidate these functions, make them more modular
-def true_psf_column_gaussian(dataframe):
-
-    dataframe['true_psf_sigma'] = list(map(lambda obj: obj.sigma, dataframe['true_psf']))
-    return dataframe
-
-
-def true_psf_column_moffat(dataframe):
-    dataframe['true_psf_fwhm'] = list(map(lambda obj: obj.fwhm, dataframe['true_psf']))
-
-# TODO add this column to the dataframe, trace the parameter through the code
-def gal_psf_ratio_gaussian(dataframe):
-
-    dataframe['gal_sigma'] = list(map(lambda gal: gal.sigma, dataframe['original_gal']))
-    dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['true_psf_sigma']
-
-    return dataframe
-
-
-def gal_psf_ratio_moffat(dataframe):
-    dataframe['gal_fwhm'] = list(map(lambda gal: gal.fwhm, dataframe['original_gal']))
-    dataframe['gal_psf_ratio'] = dataframe['gal_fwhm'] / dataframe['true_psf_fwhm']    
-
-
-def generate_df(results):
-    """
-    Takes in the results array and returns a pandas dataframe with columns
-    for each parameter
-    """
-    # Loading the results table into a Pandas DataFrame
-    results_df = pd.DataFrame(results, columns=['original_gal', 'oshear_g1', 'oshear_g2', 'true_psf', 'deconv_psf', 'reconv_psf', 'shear_estimation_psf', 'cshear_dg1', 'cshear_dg2', 'shear_estimator', 'pixel_scale', 'R'])
-    return element_columns(results_df)
-    # creating columns for psf parameters
-    # create_psf_parameter_columns(results_df, 'deconv_psf')
-    # create_psf_parameter_columns(results_df, 'reconv_psf')
-
-    # # creating columns of the metrics for shear response matrix "closeness"
-    # apply_metric(results_df, frobenius_norm)
-    # apply_metric(results_df, sum_abs_differences)
-
-    # # creating columns for the individual shear response matrix elements
-    # element_columns(results_df)
-
-    # # creating a column for the sigma of the true psf
-    # # true_psf_column_gaussian(results_df)
-    # true_psf_column_moffat(results_df)
-
-    # # creating columns for original_gal sigma and gal/psf size ratio
-    # # gal_psf_ratio_gaussian(results_df)
-    # gal_psf_ratio_moffat(results_df)
-
-    return results_df
-
-
 def main():
 
     args = sys.argv[1:]
 
     if len(args) != 2:
         print("Error: missing arguments")
-        print("python data_generation.py [filename to create]")
+        print("python data_generation.py -generate [filename to create]")
         return 1
 
     if args[0] == '-generate':
@@ -327,8 +151,8 @@ def main():
 
         # combinations = generate_combinations()
         # combinations = sanity_check1()
-        # combinations = sanity_check_2()
-        combinations = all_moffat_tests()
+        # combinations = all_gaussian_combinations()
+        combinations = moffat_psf_combinations()
 
         if not os.path.exists('pickles/' + filename_to_create + '.pickle'):
             vary_parameters(combinations, 'pickles/' + filename_to_create + '.pickle')
