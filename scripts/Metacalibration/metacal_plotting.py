@@ -8,6 +8,8 @@ from multiprocessing import Pool
 import pandas as pd
 import matplotlib.pyplot as plt
 import os.path
+import seaborn as sns
+
 
 def save_fig_to_plots(figname):
 
@@ -230,7 +232,18 @@ def sanity_check_2(dataframe):
 
 def all_moffat(dataframe):
     print(dataframe.columns)
+
+    dataframe['gal_fwhm'] = [gal.fwhm for gal in dataframe['original_gal']]
+    dataframe['moffat_psf_fwhm'] = [psf.fwhm for psf in dataframe['true_psf']]
+    
+    dataframe['gal_psf_ratio'] = dataframe['gal_fwhm'] / dataframe['moffat_psf_fwhm']
+    
     plot_R_elements(dataframe, 'gal_psf_ratio', 'gal_fwhm')
+
+    # sns.scatterplot(data=dataframe, x='gal_psf_ratio', y='R_11', hue='gal_fwhm')
+    # plt.show()
+    
+
 
 def generate_images(dataframe):
     """

@@ -111,12 +111,10 @@ def all_moffat_tests():
                 true_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=true_psf_fwhm[i])
                 deconv_psf = true_psf
                 reconv_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=reconv_psf_fwhm[i])
-                observed_galaxy = galsim.Convolve(original_gal, true_psf)
 
-                combinations.append((observed_galaxy, original_gal, true_psf, deconv_psf, reconv_psf, delta_g, delta_g))
+                combinations.append((original_gal, 0.0, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, delta_g, delta_g, 'REGAUSS', 0.02)) #TODO change this as needed
 
     return combinations
-
 
 
 def generate_combinations():
@@ -256,6 +254,9 @@ def element_columns(dataframe):
     for i in range(0, 2):
         for j in range(0, 2):
             dataframe['R_' + str(i + 1) + str(j + 1)] = list(map(lambda r: r[i][j], dataframe['R']))
+    
+    return dataframe
+
 
 # TODO consolidate these functions, make them more modular
 def true_psf_column_gaussian(dataframe):
@@ -275,6 +276,7 @@ def gal_psf_ratio_gaussian(dataframe):
 
     return dataframe
 
+
 def gal_psf_ratio_moffat(dataframe):
     dataframe['gal_fwhm'] = list(map(lambda gal: gal.fwhm, dataframe['original_gal']))
     dataframe['gal_psf_ratio'] = dataframe['gal_fwhm'] / dataframe['true_psf_fwhm']    
@@ -286,26 +288,26 @@ def generate_df(results):
     for each parameter
     """
     # Loading the results table into a Pandas DataFrame
-    results_df = pd.DataFrame(results, columns=['observed_galaxy', 'original_gal', 'true_psf', 'deconv_psf', 'reconv_psf', 'dg1', 'dg2', 'R'])
-
+    results_df = pd.DataFrame(results, columns=['original_gal', 'oshear_g1', 'oshear_g2', 'true_psf', 'deconv_psf', 'reconv_psf', 'shear_estimation_psf', 'cshear_dg1', 'cshear_dg2', 'shear_estimator', 'pixel_scale', 'R'])
+    return element_columns(results_df)
     # creating columns for psf parameters
-    create_psf_parameter_columns(results_df, 'deconv_psf')
-    create_psf_parameter_columns(results_df, 'reconv_psf')
+    # create_psf_parameter_columns(results_df, 'deconv_psf')
+    # create_psf_parameter_columns(results_df, 'reconv_psf')
 
-    # creating columns of the metrics for shear response matrix "closeness"
-    apply_metric(results_df, frobenius_norm)
-    apply_metric(results_df, sum_abs_differences)
+    # # creating columns of the metrics for shear response matrix "closeness"
+    # apply_metric(results_df, frobenius_norm)
+    # apply_metric(results_df, sum_abs_differences)
 
-    # creating columns for the individual shear response matrix elements
-    element_columns(results_df)
+    # # creating columns for the individual shear response matrix elements
+    # element_columns(results_df)
 
-    # creating a column for the sigma of the true psf
-    # true_psf_column_gaussian(results_df)
-    true_psf_column_moffat(results_df)
+    # # creating a column for the sigma of the true psf
+    # # true_psf_column_gaussian(results_df)
+    # true_psf_column_moffat(results_df)
 
-    # creating columns for original_gal sigma and gal/psf size ratio
-    # gal_psf_ratio_gaussian(results_df)
-    gal_psf_ratio_moffat(results_df)
+    # # creating columns for original_gal sigma and gal/psf size ratio
+    # # gal_psf_ratio_gaussian(results_df)
+    # gal_psf_ratio_moffat(results_df)
 
     return results_df
 
