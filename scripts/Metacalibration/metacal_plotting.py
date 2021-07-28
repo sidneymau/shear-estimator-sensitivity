@@ -231,6 +231,77 @@ def all_moffat(dataframe):
     plot_R_elements(dataframe, 'gal_psf_ratio', 'gal_fwhm', 'moffat_psfs_gal_psf_ratio')
     
 
+def all_gaussian_different_ellipticies(dataframe):
+    
+    dataframe['gal_sigma'] = [gal.sigma for gal in dataframe['original_gal']]
+    dataframe['psf_sigma'] = [psf.sigma for psf in dataframe['true_psf']]
+    dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['psf_sigma']
+    # print(dataframe.columns)
+
+
+    R_inv_list = [np.linalg.inv(R) for R in dataframe['R']]
+    R_inv_array = np.asarray(R_inv_list)
+    
+    estimated_ellip_vec_list = []
+    for i in range(len(dataframe['R'])):
+        e1 = dataframe['reconvolved_noshear_e1'][i]
+        e2 = dataframe['reconvolved_noshear_e2'][i]
+        estimated_ellip_vec_list.append(np.array([[e1],[e2]]))
+    
+    estimated_ellip_vec_array = np.asarray(estimated_ellip_vec_list)
+   
+    estimated_shear_array = R_inv_array @ estimated_ellip_vec_array
+
+    estimated_e1 = estimated_shear_array[:,0, 0]
+    estimated_e2 = estimated_shear_array[:,1, 0]
+
+    estimated_g1 = estimated_e1 / 2
+    estimated_g2 = estimated_e2 / 2
+
+    true_g1 = dataframe['oshear_g1'].to_numpy()[:]
+    true_g2 = dataframe['oshear_g2'].to_numpy()[:]
+
+ 
+    # print(estimated_g1)
+    # print(estimated_g2)
+    # print(true_g1)
+    # print(true_g2)
+
+    fig, axs = plt.subplots(1, 2, figsize=(15, 9))
+
+    # axs[0].scatter(true_g1, estimated_g1 - true_g1)
+    axs[0].set_xlabel('true_g1')
+    axs[0].set_ylabel('(estimated_g1 - true_g1) / true_g1')
+    axs[0].set_title('g1')
+    # axs[1].scatter(true_g2, estimated_g2 - true_g2)
+    axs[1].set_xlabel('true_g2')
+    axs[1].set_ylabel('(estimated_g2 - true_g2) / true_g2')
+    axs[1].set_title('g2')
+
+    im = axs[0].scatter(true_g1, (estimated_g1 - true_g1)/true_g1, c=dataframe['gal_psf_ratio'][:], cmap='viridis')
+    im = axs[1].scatter(true_g2, (estimated_g2 - true_g2)/true_g2, c=dataframe['gal_psf_ratio'][:], cmap='viridis')
+
+    # axs[0].plot([0, 0.1], [0, 0.1], label='estimated g1 = true g1')
+    # axs[1].plot([0, 0.1], [0, 0.1], label='estimated g2 = true g2')
+
+    # axs[0].legend()
+    # axs[1].legend()
+
+    # cbaxes = fig.add_axes([0.2, 0.1, 0.6, 0.01])
+    cb = fig.colorbar(im, ax=axs[:], orientation='horizontal', shrink=0.45) #, cax=cbaxes)
+    cb.set_label('galaxy size to psf size ratio')
+
+    fig.suptitle('Estimated g fractional error vs true g by element')
+
+    # save_fig_to_plots('fractional error vs true g1 and g2')
+    
+    plt.show()
+   
+
+def all_gaussian_varying_cshear_pixelscale(dataframe):
+    # print(dataframe['cshear_dg1'])
+    pass
+
 def generate_images(dataframe):
     """
     Goal: make images of one of the cases where R11 and R22 were the highest
@@ -303,9 +374,11 @@ def master_plotting(dataframe):
     # r_vs_gaussian_deconv_psf_size(dataframe)
     # r_vs_gaussian_deconv_psf_size_violin(dataframe)
     # sanity_check_1(dataframe)
-    all_gaussian(dataframe)
+    # all_gaussian(dataframe)
     # all_moffat(dataframe)
     # generate_images(dataframe)
+    all_gaussian_different_ellipticies(dataframe)
+    # all_gaussian_varying_cshear_pixelscale(dataframe)
 
 
 def pickle_to_modified_dataframe(filename):
