@@ -7,6 +7,11 @@ import sys
 from multiprocessing import Pool
 import pandas as pd
 import matplotlib.pyplot as plt
+
+# matplotlib.rc('xtick', labelsize=20)
+# matplotlib.rc('ytick', labelsize=20)
+plt.rcParams.update({'font.size': 18})
+
 import os.path
 import seaborn as sns
 
@@ -261,7 +266,6 @@ def all_gaussian_different_ellipticies(dataframe):
     true_g1 = dataframe['oshear_g1'].to_numpy()[:]
     true_g2 = dataframe['oshear_g2'].to_numpy()[:]
 
- 
     # print(estimated_g1)
     # print(estimated_g2)
     # print(true_g1)
@@ -271,15 +275,38 @@ def all_gaussian_different_ellipticies(dataframe):
 
     # axs[0].scatter(true_g1, estimated_g1 - true_g1)
     axs[0].set_xlabel('true_g1')
-    axs[0].set_ylabel('(estimated_g1 - true_g1) / true_g1')
+    axs[0].set_ylabel('[(estimated_g1 - true_g1)/true_g1]' )
+    axs[0].set_ylabel(r'$(\frac{{g_1}_{est} - {g_1}_{est}}{{g_1}_{true}})$')
     axs[0].set_title('g1')
     # axs[1].scatter(true_g2, estimated_g2 - true_g2)
     axs[1].set_xlabel('true_g2')
-    axs[1].set_ylabel('(estimated_g2 - true_g2) / true_g2')
+    axs[1].set_ylabel(r'$(\frac{{g_2}_{est} - {g_2}_{est}}{{g_2}_{true}})$')
     axs[1].set_title('g2')
 
-    im = axs[0].scatter(true_g1, (estimated_g1 - true_g1)/true_g1, c=dataframe['gal_psf_ratio'][:], cmap='viridis')
-    im = axs[1].scatter(true_g2, (estimated_g2 - true_g2)/true_g2, c=dataframe['gal_psf_ratio'][:], cmap='viridis')
+    # import pdb;pdb.set_trace()
+    y1 = (estimated_g1 - true_g1)/true_g1
+    y2 = (estimated_g2 - true_g2)/true_g2
+
+    im = axs[0].scatter(true_g1, y1, c=dataframe['gal_psf_ratio'][:], cmap='cividis')
+    im = axs[1].scatter(true_g2, y2, c=dataframe['gal_psf_ratio'][:], cmap='cividis')
+
+    plt.subplots_adjust(hspace=1.5, wspace=0.3)
+
+#    setting log y scale
+    for ax in axs:
+        ax.set_ylim(bottom=1e-3, top=1e-1)
+        ax.set_yscale('log')
+
+    # m1, b1 = np.polyfit(true_g1, estimated_g1 - true_g1, 1)
+    # m2, b2 = np.polyfit(true_g1, estimated_g1 - true_g1, 1)
+
+    # axs[0].plot(true_g1, m1 * true_g1 + b1, label=f"m1 = {m1}, b1 = {b1}")
+    # axs[1].plot(true_g2, m2 * true_g2 + b2, label=f"m2 = {m2}, b2 = {b2}")
+    # axs[0].legend()
+    # axs[1].legend()
+
+    # print('m1: ', m1)
+    # print('m2: ', m2)
 
     # axs[0].plot([0, 0.1], [0, 0.1], label='estimated g1 = true g1')
     # axs[1].plot([0, 0.1], [0, 0.1], label='estimated g2 = true g2')
@@ -291,9 +318,9 @@ def all_gaussian_different_ellipticies(dataframe):
     cb = fig.colorbar(im, ax=axs[:], orientation='horizontal', shrink=0.45) #, cax=cbaxes)
     cb.set_label('galaxy size to psf size ratio')
 
-    fig.suptitle('Estimated g fractional error vs true g by element')
+    fig.suptitle(r'$(\frac{{g_i,}_{est} - {g_i,}_{est}}{{g_i,}_{true}})$ by element')
 
-    # save_fig_to_plots('fractional error vs true g1 and g2')
+    # save_fig_to_plots('all_gaussian_log_errors_cdg=0.05_scale=0.02')
     
     plt.show()
    
