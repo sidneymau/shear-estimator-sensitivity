@@ -236,7 +236,7 @@ def all_moffat(dataframe):
     plot_R_elements(dataframe, 'gal_psf_ratio', 'gal_fwhm', 'moffat_psfs_gal_psf_ratio')
     
 
-def all_gaussian_different_ellipticies(dataframe):
+def all_gaussian_different_ellipticies(dataframe, plotname):
     
     dataframe['gal_sigma'] = [gal.sigma for gal in dataframe['original_gal']]
     dataframe['psf_sigma'] = [psf.sigma for psf in dataframe['true_psf']]
@@ -283,7 +283,6 @@ def all_gaussian_different_ellipticies(dataframe):
     axs[1].set_ylabel(r'$(\frac{{g_2}_{est} - {g_2}_{est}}{{g_2}_{true}})$')
     axs[1].set_title('g2')
 
-    # import pdb;pdb.set_trace()
     y1 = (estimated_g1 - true_g1)/true_g1
     y2 = (estimated_g2 - true_g2)/true_g2
 
@@ -292,7 +291,7 @@ def all_gaussian_different_ellipticies(dataframe):
 
     plt.subplots_adjust(hspace=1.5, wspace=0.3)
 
-#    setting log y scale
+
     for ax in axs:
         ax.set_ylim(bottom=1e-3, top=1e-1)
         ax.set_yscale('log')
@@ -320,13 +319,25 @@ def all_gaussian_different_ellipticies(dataframe):
 
     fig.suptitle(r'$(\frac{{g_i,}_{est} - {g_i,}_{est}}{{g_i,}_{true}})$ by element')
 
-    # save_fig_to_plots('all_gaussian_log_errors_cdg=0.05_scale=0.02')
+    save_fig_to_plots(plotname)
     
     plt.show()
    
 
-def all_gaussian_varying_cshear_pixelscale(dataframe):
-    # print(dataframe['cshear_dg1'])
+def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, pixel_scale=0.2, cshear_dg=0.01):
+    
+    print(dataframe.columns)
+    print(dataframe.shape)
+
+    filtered = dataframe
+    # pixel scale filter
+    filtered = filtered[filtered['pixel_scale'] == pixel_scale]
+
+    # cshear_dg filter
+    filtered = filtered[filtered['cshear_dg1'] == cshear_dg]
+
+    all_gaussian_different_ellipticies(filtered, 'test')
+    
     pass
 
 def generate_images(dataframe):
@@ -393,7 +404,7 @@ def generate_images(dataframe):
 
 
 # MASTER FUNCTIONS
-def master_plotting(dataframe):
+def master_plotting(dataframe, filename):
 
     ## Calling different plotting functions ##
     # r_vs_calshearmag(dataframe)
@@ -404,8 +415,8 @@ def master_plotting(dataframe):
     # all_gaussian(dataframe)
     # all_moffat(dataframe)
     # generate_images(dataframe)
-    all_gaussian_different_ellipticies(dataframe)
-    # all_gaussian_varying_cshear_pixelscale(dataframe)
+    # all_gaussian_different_ellipticies(dataframe, filename)
+    all_gaussian_varying_cshear_oshear_pixelscale(dataframe)
 
 
 def pickle_to_modified_dataframe(filename):
@@ -430,7 +441,20 @@ def main():
     filename = args[0]
     modified_dataframe = pickle_to_modified_dataframe(filename)
 
-    master_plotting(modified_dataframe)
+
+    slash_loc = len(filename) - 1
+    while slash_loc >= 0 and filename[slash_loc] != '/':
+        slash_loc -= 1
+
+    period_loc = len(filename) - 1
+    while period_loc >= 0 and filename[period_loc] != '.':
+        period_loc -= 1
+    
+    
+    plotname = filename[slash_loc + 1:period_loc]
+
+
+    master_plotting(modified_dataframe, plotname)
 
 
 

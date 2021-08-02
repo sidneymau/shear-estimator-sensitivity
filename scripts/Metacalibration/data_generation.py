@@ -226,7 +226,7 @@ def main():
         # combinations = sanity_check1()
         # combinations = all_gaussian_combinations()
         # combinations = moffat_psf_combinations()
-        combinations = response_accuracy_test_0(0.2)
+        combinations = response_accuracy_test_0(0.02)
         # combinations = response_accuracy_test_better()
 
         if not os.path.exists('pickles'):
