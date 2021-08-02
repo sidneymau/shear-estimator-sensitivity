@@ -17,86 +17,6 @@ import seaborn as sns
 
 
 # TABLE-MODIFYING FUNCTIONS 
-# Should be used within plotting functions as needed 
-# TODO consolidate these functions, make them more modular
-def frobenius_norm(r):
-    """
-    Takes in a matrix r and returns its frobenius distance
-    from 2 * identity
-    """
-    return np.sqrt(np.sum(np.square(r - 2*np.eye(2))))
-
-
-def sum_abs_differences(r):
-    """
-    Takes in a matrix r and returns the sum of the element-wise distances
-    from 2 * identity
-    """
-    return np.sum(np.absolute(r - 2*np.eye(2)))
-
-
-def identify_psf_profile(obj):
-    """
-    Takes in a galsim PSF object and returns a tuple
-    of its type and relevant parameters
-    """
-
-    # TODO incorporate more types of PSF profiles
-
-    if isinstance(obj, galsim.gaussian.Gaussian):
-        return ('Gaussian', obj.flux, obj.sigma)
-    if isinstance(obj, galsim.moffat.Moffat):
-        return ('Moffat', obj.flux, obj.beta, obj.half_light_radius)
-
-
-def create_psf_parameter_columns(dataframe, object_column_name):
-    """
-    """
-    dataframe[object_column_name + '_type'] = [identify_psf_profile(obj)[0] for obj in dataframe[object_column_name]]
-
-    gauss_flux = []
-    gauss_sigma = []
-
-    moffat_flux = []
-    moffat_beta = []
-    moffat_hlr = []
-
-
-    for obj in dataframe[object_column_name]:
-        profile_tuple = identify_psf_profile(obj)
-        profile_type = profile_tuple[0]
-
-        if profile_type == 'Gaussian':
-            gauss_flux.append(profile_tuple[1])
-            gauss_sigma.append(profile_tuple[2])
-
-            for lst in [moffat_flux, moffat_beta, moffat_hlr]:
-                lst.append(np.nan)
-
-        if profile_type == 'Moffat':
-            moffat_flux.append(profile_tuple[1])
-            moffat_beta.append(profile_tuple[2])
-            moffat_hlr.append(profile_tuple[3])
-
-            for lst in [gauss_flux, gauss_sigma]:
-                lst.append(np.nan)
-
-
-    dataframe[object_column_name + '_gaussian_flux'] = gauss_flux
-    dataframe[object_column_name + '_sigma'] = gauss_sigma
-    dataframe[object_column_name + '_moffat_flux'] = moffat_flux
-    dataframe[object_column_name + '_beta'] = moffat_beta
-    dataframe[object_column_name + '_half_light_radius'] = moffat_hlr
-
-
-def apply_metric(dataframe, metric):
-    """
-    Takes in the function metric (that acts on a 2x2 np array)
-    and adds a column to the dataframe passed in with that metric applied to
-    each row
-    """
-    dataframe[metric.__name__] = list(map(metric, dataframe['R']))
-
 
 def element_columns(dataframe):
     """
@@ -109,29 +29,6 @@ def element_columns(dataframe):
     return dataframe
 
 
-def true_psf_column_gaussian(dataframe):
-
-    dataframe['true_psf_sigma'] = list(map(lambda obj: obj.sigma, dataframe['true_psf']))
-    return dataframe
-
-
-def true_psf_column_moffat(dataframe):
-    dataframe['true_psf_fwhm'] = list(map(lambda obj: obj.fwhm, dataframe['true_psf']))
-
-
-def gal_psf_ratio_gaussian(dataframe):
-
-    dataframe['gal_sigma'] = list(map(lambda gal: gal.sigma, dataframe['original_gal']))
-    dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['true_psf_sigma']
-
-    return dataframe
-
-
-def gal_psf_ratio_moffat(dataframe):
-    dataframe['gal_fwhm'] = list(map(lambda gal: gal.fwhm, dataframe['original_gal']))
-    dataframe['gal_psf_ratio'] = dataframe['gal_fwhm'] / dataframe['true_psf_fwhm']    
-
-
 def generate_df(results):
     """
     Takes in the results array and returns a pandas dataframe with columns
@@ -140,31 +37,14 @@ def generate_df(results):
     # Loading the results table into a Pandas DataFrame
     results_df = pd.DataFrame(results, columns=['original_gal', 'oshear_g1', 'oshear_g2', 'true_psf', 'deconv_psf', 'reconv_psf', 'shear_estimation_psf', 'cshear_dg1', 'cshear_dg2', 'shear_estimator', 'pixel_scale', 'R', 'reconvolved_noshear', 'reconvolved_noshear_e1', 'reconvolved_noshear_e2'])
     return element_columns(results_df)
-    # creating columns for psf parameters
-    # create_psf_parameter_columns(results_df, 'deconv_psf')
-    # create_psf_parameter_columns(results_df, 'reconv_psf')
-
-    # # creating columns of the metrics for shear response matrix "closeness"
-    # apply_metric(results_df, frobenius_norm)
-    # apply_metric(results_df, sum_abs_differences)
-
-    # # creating columns for the individual shear response matrix elements
-    # element_columns(results_df)
-
-    # # creating a column for the sigma of the true psf
-    # # true_psf_column_gaussian(results_df)
-    # true_psf_column_moffat(results_df)
-
-    # # creating columns for original_gal sigma and gal/psf size ratio
-    # # gal_psf_ratio_gaussian(results_df)
-    # gal_psf_ratio_moffat(results_df)
-
-    return results_df
 
 
 # INDIVIDUAL PLOTTING FUNCTIONS
 def save_fig_to_plots(figname):
-
+    """
+    Function for my own sanity, used for saving files to a specific directory
+    without overwriting any old ones.
+    """
     # finding file version
     version = 1
     if not os.path.exists('plots/' + figname + '.png'):
@@ -178,7 +58,10 @@ def save_fig_to_plots(figname):
 
 
 def plot_R_elements(dataframe, xaxis_column, color_column, filename, x_units='', color_units='arcseconds'):
-
+    """
+    Generates a plot of each element of the shear response matrix as a function of the parameter
+    "xaxis_column"
+    """
     fig, axs = plt.subplots(2, 2, figsize=(8, 8))
 
     # fixing plotting scales
@@ -216,7 +99,11 @@ def plot_R_elements(dataframe, xaxis_column, color_column, filename, x_units='',
 
 
 def all_gaussian(dataframe):
-
+    """
+    Plots the elements of the shear response matrix R for a master dataframe of
+    gaussian original galaxies and Gaussian PSFs for different ratios of galaxy size
+    to PSF size
+    """
     dataframe['gal_sigma'] = [gal.sigma for gal in dataframe['original_gal']]
     dataframe['psf_sigma'] = [psf.sigma for psf in dataframe['true_psf']]
     dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['psf_sigma']
@@ -225,7 +112,11 @@ def all_gaussian(dataframe):
     
 
 def all_moffat(dataframe):
-
+    """
+    Plots the elements of the shear response matrix R for a master dataframe of
+    gaussian original galaxies and Moffat PSFs for different ratios of galaxy size
+    to PSF size
+    """
     dataframe['gal_fwhm'] = [gal.fwhm for gal in dataframe['original_gal']]
     dataframe['moffat_psf_fwhm'] = [psf.fwhm for psf in dataframe['true_psf']]
     dataframe['gal_psf_ratio'] = dataframe['gal_fwhm'] / dataframe['moffat_psf_fwhm']
@@ -237,12 +128,13 @@ def all_moffat(dataframe):
     
 
 def all_gaussian_different_ellipticies(dataframe, plotname):
-    
+    """
+    Takes in the master dataframe, and generates a plot of m = (estimated_gi - true_gi) / true_gi
+    for each element
+    """
     dataframe['gal_sigma'] = [gal.sigma for gal in dataframe['original_gal']]
     dataframe['psf_sigma'] = [psf.sigma for psf in dataframe['true_psf']]
     dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['psf_sigma']
-    # print(dataframe.columns)
-
 
     R_inv_list = [np.linalg.inv(R) for R in dataframe['R']]
     R_inv_array = np.asarray(R_inv_list)
@@ -319,13 +211,15 @@ def all_gaussian_different_ellipticies(dataframe, plotname):
 
     fig.suptitle(r'$(\frac{{g_i,}_{est} - {g_i,}_{est}}{{g_i,}_{true}})$ by element')
 
-    save_fig_to_plots(plotname)
+    # save_fig_to_plots(plotname)
     
     plt.show()
    
 
-def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, pixel_scale=0.2, cshear_dg=0.01):
-    
+def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_scale=0.2, cshear_dg=0.01):
+    """
+    INCOMPLETE
+    """
     print(dataframe.columns)
     print(dataframe.shape)
 
@@ -336,13 +230,13 @@ def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, pixel_scale=0.2, cs
     # cshear_dg filter
     filtered = filtered[filtered['cshear_dg1'] == cshear_dg]
 
-    all_gaussian_different_ellipticies(filtered, 'test')
+    all_gaussian_different_ellipticies(filtered, filename)
     
     pass
 
 def generate_images(dataframe):
     """
-    Goal: make images of one of the cases where R11 and R22 were the highest
+    Generates images of one of the cases where R11 and R22 were the highest
     """
     # find the row with the parameters that generated the highest R11
 
@@ -400,12 +294,13 @@ def generate_images(dataframe):
         counter += 1
 
     plt.show()
-    print(image_dict)
 
 
 # MASTER FUNCTIONS
 def master_plotting(dataframe, filename):
-
+    """
+    Calls whichever plotting function isn't commented out
+    """
     ## Calling different plotting functions ##
     # r_vs_calshearmag(dataframe)
     # r_vs_reconv_profile(dataframe)
@@ -416,11 +311,14 @@ def master_plotting(dataframe, filename):
     # all_moffat(dataframe)
     # generate_images(dataframe)
     # all_gaussian_different_ellipticies(dataframe, filename)
-    all_gaussian_varying_cshear_oshear_pixelscale(dataframe)
+    all_gaussian_varying_cshear_oshear_pixelscale(dataframe, 'test')
 
 
 def pickle_to_modified_dataframe(filename):
-
+    """
+    Opens a pickle file and generates the master dataframe of galsim
+    objects and parameters
+    """
     with open(filename, 'rb') as f:
         stored_results = pickle.load(f)
 
@@ -441,7 +339,7 @@ def main():
     filename = args[0]
     modified_dataframe = pickle_to_modified_dataframe(filename)
 
-
+    # pulling out plot name from cmd line argument
     slash_loc = len(filename) - 1
     while slash_loc >= 0 and filename[slash_loc] != '/':
         slash_loc -= 1

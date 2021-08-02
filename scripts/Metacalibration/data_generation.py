@@ -4,7 +4,10 @@ different parameters to measure the response of the shear response matrix.
 
 It pickles a list of tuples with the galsim objects and relevant parameters to disk.
 
-TODO Update docstrings and parameters to PEP 8 standards
+Step 1. Generate a combination of galaxies to feed into the metacalibration() function from metacal.py
+Step 2. Use multiprocessing/Pool to feed the list of combinations into the metacalibration function and generate a list of tuples
+Step 3. pickle the resulting list of tuples to disk for data processing/plotting in the metacal_plotting.py script
+
 """
 import galsim
 import numpy as np
@@ -16,11 +19,22 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os.path
 
-# TODO Think of other metrics that could be used to calculate shear response matrix quality
-
 
 # START COMBINATION-GENERATION FUNCTIONS
 def all_gaussian_combinations():
+    """
+
+    Generates combinations with:
+
+    - all gaussian source galaxies
+    - all gaussian PSFs
+    - NO INITIAL COSMIC SHEAR
+    - Calibration shear magnitude of 0.01
+    - constant dilation factor of 1.2 * size of deconv PSF
+    - pixel scale of 0.2
+    - 'REGAUSS' shape measurement algorithm.
+   
+    """
 
     gal_flux = 1.e5
     dg = [0.01]
@@ -38,14 +52,27 @@ def all_gaussian_combinations():
                 true_psf = galsim.Gaussian(flux=gal_flux, sigma=true_psf_sigmas[i])
                 deconv_psf = true_psf
                 reconv_psf = galsim.Gaussian(flux=gal_flux, sigma=reconv_psf_sigmas[i])
-                observed_galaxy = galsim.Convolve(original_gal, true_psf)
 
-                combinations.append((original_gal, 0.0, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, delta_g, delta_g, 'REGAUSS', 0.02))
+                combinations.append((original_gal, 0.0, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, delta_g, delta_g, 'REGAUSS', 0.2))
 
     return combinations
 
 
 def moffat_psf_combinations():
+    """
+
+    Generates combinations with:
+
+    - all gaussian source galaxies
+    - all Moffat PSFs
+    - NO INITIAL COSMIC SHEAR
+    - Calibration shear magnitude of 0.01
+    - constant dilation factor of 1.2 * size of deconv PSF
+    - pixel scale of 0.2
+    - 'REGAUSS' shape measurement algorithm.
+
+    """
+
     gal_flux = 1.e5
     dg = [0.01]
     dilation_factor = 1.2
@@ -64,13 +91,24 @@ def moffat_psf_combinations():
                 deconv_psf = true_psf
                 reconv_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=reconv_psf_fwhm[i])
 
-                combinations.append((original_gal, 0.0, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, delta_g, delta_g, 'REGAUSS', 0.02)) #TODO change this as needed
+                combinations.append((original_gal, 0.0, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, delta_g, delta_g, 'REGAUSS', 0.2))
 
     return combinations
 
 
 def response_accuracy_test_0(pixel_scale):
     """
+
+    Generates combinations with:
+
+    - all Gaussian source galaxies
+    - all Gaussian PSFs
+    - initial cosmic shear from -0.05 to 0.05 for g1 and g2, one at a time
+    - Calibration shear magnitude of 0.01 or 0.05
+    - variable dilation factor (from Huff & Mandelbaum 2017)
+    - variable pixel_scale (parameter)
+    - 'REGAUSS' shape measurement algorithm.
+
     takes ~ 30 seconds for pixel_scale = 0.2
     takes ~ 5 minutes for pixel_scale = 0.02
     """
@@ -78,6 +116,7 @@ def response_accuracy_test_0(pixel_scale):
 
     gal_flux = 1.e5
     cshear_dg = [0.05]
+    # cshear_dg = [0.01]
 
 
     gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
@@ -108,8 +147,21 @@ def response_accuracy_test_0(pixel_scale):
 
 
 def response_accuracy_test_better():
+    """
 
-    # going back to all-Gaussian galaxies
+    Generates combinations with:
+
+    - all Gaussian source galaxies
+    - all Gaussian PSFs
+    - initial cosmic shear from -0.05 to 0.05 for g1 and g2, one at a time
+    - Calibration shear magnitudes from 0.01 to 0.10
+    - variable dilation factor (from Huff & Mandelbaum 2017)
+    - variable pixel_scale (0.2 and 0.02))
+    - 'REGAUSS' shape measurement algorithm.
+
+    runtime: ~ 1 hour, needs to be done on Sherlock
+
+    """
 
     gal_flux = 1.e5
     cshear_dg = np.arange(0.01, 0.11, 0.01)
@@ -194,6 +246,11 @@ def generate_combinations():
 # END COMBINATION-GENERATION FUNCTIONS
 def vary_parameters(combo_list, storage_file):
     """
+
+    This function is called in main after the desired combinations are generated.
+    Uses multiprocessing to feed combinations into metacalibration and generate
+    a list of tuples of results, which is then dumped into a .pickle file
+
     """
 
     # Using multiprocessing to generate shear response matrices for all combinations
@@ -213,21 +270,25 @@ def main():
 
     args = sys.argv[1:]
 
-    # if len(args) != 2:
-    #     print("Error: missing arguments")
-    #     print("python data_generation.py -generate [filename to create]")
-    #     return 1
 
     if args[0] == '-generate':
 
+        # parse filename for .pickle file from cmd line
         filename_to_create = args[1]
+
+        # Generates combinations using the one function not commented out
 
         # combinations = generate_combinations()
         # combinations = sanity_check1()
         # combinations = all_gaussian_combinations()
         # combinations = moffat_psf_combinations()
-        combinations = response_accuracy_test_0(0.02)
+        combinations = response_accuracy_test_0(0.2)
         # combinations = response_accuracy_test_better()
+
+
+        # Stuff for my sanity
+        # naming the pickle file according to cmd line argument
+        # making sure pickle files aren't overwritten
 
         if not os.path.exists('pickles'):
             vary_parameters(combinations, filename_to_create + '.pickle')

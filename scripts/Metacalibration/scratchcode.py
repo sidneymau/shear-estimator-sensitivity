@@ -1,6 +1,109 @@
 # CONTAINS SCRATCH CODE
 
-# Old plotting function that I don't need anymore
+# Old column creation functions that I don't use anymore
+
+def frobenius_norm(r):
+    """
+    Takes in a matrix r and returns its frobenius distance
+    from 2 * identity
+    """
+    return np.sqrt(np.sum(np.square(r - 2*np.eye(2))))
+
+
+def sum_abs_differences(r):
+    """
+    Takes in a matrix r and returns the sum of the element-wise distances
+    from 2 * identity
+    """
+    return np.sum(np.absolute(r - 2*np.eye(2)))
+
+
+def identify_psf_profile(obj):
+    """
+    Takes in a galsim PSF object and returns a tuple
+    of its type and relevant parameters
+    """
+
+    # TODO incorporate more types of PSF profiles
+
+    if isinstance(obj, galsim.gaussian.Gaussian):
+        return ('Gaussian', obj.flux, obj.sigma)
+    if isinstance(obj, galsim.moffat.Moffat):
+        return ('Moffat', obj.flux, obj.beta, obj.half_light_radius)
+
+
+def create_psf_parameter_columns(dataframe, object_column_name):
+    """
+    """
+    dataframe[object_column_name + '_type'] = [identify_psf_profile(obj)[0] for obj in dataframe[object_column_name]]
+
+    gauss_flux = []
+    gauss_sigma = []
+
+    moffat_flux = []
+    moffat_beta = []
+    moffat_hlr = []
+
+
+    for obj in dataframe[object_column_name]:
+        profile_tuple = identify_psf_profile(obj)
+        profile_type = profile_tuple[0]
+
+        if profile_type == 'Gaussian':
+            gauss_flux.append(profile_tuple[1])
+            gauss_sigma.append(profile_tuple[2])
+
+            for lst in [moffat_flux, moffat_beta, moffat_hlr]:
+                lst.append(np.nan)
+
+        if profile_type == 'Moffat':
+            moffat_flux.append(profile_tuple[1])
+            moffat_beta.append(profile_tuple[2])
+            moffat_hlr.append(profile_tuple[3])
+
+            for lst in [gauss_flux, gauss_sigma]:
+                lst.append(np.nan)
+
+
+    dataframe[object_column_name + '_gaussian_flux'] = gauss_flux
+    dataframe[object_column_name + '_sigma'] = gauss_sigma
+    dataframe[object_column_name + '_moffat_flux'] = moffat_flux
+    dataframe[object_column_name + '_beta'] = moffat_beta
+    dataframe[object_column_name + '_half_light_radius'] = moffat_hlr
+
+
+def apply_metric(dataframe, metric):
+    """
+    Takes in the function metric (that acts on a 2x2 np array)
+    and adds a column to the dataframe passed in with that metric applied to
+    each row
+    """
+    dataframe[metric.__name__] = list(map(metric, dataframe['R']))
+
+
+def true_psf_column_gaussian(dataframe):
+
+    dataframe['true_psf_sigma'] = list(map(lambda obj: obj.sigma, dataframe['true_psf']))
+    return dataframe
+
+
+def true_psf_column_moffat(dataframe):
+    dataframe['true_psf_fwhm'] = list(map(lambda obj: obj.fwhm, dataframe['true_psf']))
+
+
+def gal_psf_ratio_gaussian(dataframe):
+
+    dataframe['gal_sigma'] = list(map(lambda gal: gal.sigma, dataframe['original_gal']))
+    dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['true_psf_sigma']
+
+    return dataframe
+
+
+def gal_psf_ratio_moffat(dataframe):
+    dataframe['gal_fwhm'] = list(map(lambda gal: gal.fwhm, dataframe['original_gal']))
+    dataframe['gal_psf_ratio'] = dataframe['gal_fwhm'] / dataframe['true_psf_fwhm']    
+
+# Old plotting functions that I don't need anymore
 def r_vs_calshearmag(dataframe):
 
     # test plotting R closeness to 2I vs. calibration shear magnitude
