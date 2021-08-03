@@ -1,6 +1,7 @@
 import data_generation
 import galsim
 import numpy as np
+import scipy
 import metacal
 import pickle
 import sys
@@ -10,7 +11,7 @@ import matplotlib.pyplot as plt
 
 # matplotlib.rc('xtick', labelsize=20)
 # matplotlib.rc('ytick', labelsize=20)
-plt.rcParams.update({'font.size': 18})
+# plt.rcParams.update({'font.size': 18})
 
 import os.path
 import seaborn as sns
@@ -53,9 +54,7 @@ def save_fig_to_plots(figname):
     else:
         while os.path.exists('plots/' + figname + '(' + str(version) + ').png'):
             version += 1
-
         plt.savefig('plots/' + figname + '(' + str(version) + ').png')
-
 
 def plot_R_elements(dataframe, xaxis_column, color_column, filename, x_units='', color_units='arcseconds'):
     """
@@ -98,6 +97,7 @@ def plot_R_elements(dataframe, xaxis_column, color_column, filename, x_units='',
     plt.show()
 
 
+
 def all_gaussian(dataframe):
     """
     Plots the elements of the shear response matrix R for a master dataframe of
@@ -127,14 +127,11 @@ def all_moffat(dataframe):
     plot_R_elements(dataframe, 'gal_psf_ratio', 'gal_fwhm', 'moffat_psfs_gal_psf_ratio')
     
 
-def all_gaussian_different_ellipticies(dataframe, plotname):
+def all_gaussian_different_ellipticies_log_m(dataframe, plotname):
     """
     Takes in the master dataframe, and generates a plot of m = (estimated_gi - true_gi) / true_gi
     for each element
     """
-    dataframe['gal_sigma'] = [gal.sigma for gal in dataframe['original_gal']]
-    dataframe['psf_sigma'] = [psf.sigma for psf in dataframe['true_psf']]
-    dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['psf_sigma']
 
     R_inv_list = [np.linalg.inv(R) for R in dataframe['R']]
     R_inv_array = np.asarray(R_inv_list)
@@ -216,6 +213,103 @@ def all_gaussian_different_ellipticies(dataframe, plotname):
     plt.show()
    
 
+def all_gaussian_different_ellipticities_m(dataframe, color_column, plotname, color=True, save=False):
+    """
+    Takes in the master dataframe, and generates a plot of m = (estimated_gi - true_gi) / true_gi
+    for each element
+    """ 
+
+
+    # criterion1 = dataframe['gal_sigma'].map(lambda sigma: abs(sigma - 0.424628 < 0.01))
+    # dataframe = dataframe[criterion1]
+
+    R_inv_list = [np.linalg.inv(R) for R in dataframe['R']]
+    R_inv_array = np.asarray(R_inv_list)
+   
+    
+    estimated_ellip_vec_list = []
+    for i in range(len(dataframe['R'])):
+        e1 = dataframe['reconvolved_noshear_e1'].to_numpy()[i]
+        e2 = dataframe['reconvolved_noshear_e2'].to_numpy()[i]
+        estimated_ellip_vec_list.append(np.array([[e1],[e2]]))
+    
+    estimated_ellip_vec_array = np.asarray(estimated_ellip_vec_list)
+   
+    estimated_shear_array = R_inv_array @ estimated_ellip_vec_array
+
+
+    estimated_e1 = estimated_shear_array[:,0, 0]
+    estimated_e2 = estimated_shear_array[:,1, 0]
+
+    estimated_g1 = estimated_e1 / 2
+    estimated_g2 = estimated_e2 / 2
+
+    true_g1 = dataframe['oshear_g1'].to_numpy()[:]
+    true_g2 = dataframe['oshear_g2'].to_numpy()[:]
+
+    # print(estimated_g1)
+    # print(estimated_g2)
+    # print(true_g1)
+    # print(true_g2)
+
+    fig, axs = plt.subplots(1, 2, figsize=(20, 10))
+
+    # axs[0].scatter(true_g1, estimated_g1 - true_g1)
+    axs[0].set_xlabel('true_g1')
+    axs[0].set_ylabel('[(estimated_g1 - true_g1)/true_g1]' )
+    axs[0].set_ylabel(r'$m = (\frac{{g_1}_{est} - {g_1}_{est}}{{g_1}_{true}})$')
+    axs[0].set_title('g1')
+    # axs[1].scatter(true_g2, estimated_g2 - true_g2)
+    axs[1].set_xlabel('true_g2')
+    axs[1].set_ylabel(r'$m = (\frac{{g_2}_{est} - {g_2}_{est}}{{g_2}_{true}})$')
+    axs[1].set_title('g2')
+
+    y1 = (estimated_g1 - true_g1)/true_g1
+    y2 = (estimated_g2 - true_g2)/true_g2
+
+    if color:
+        im = axs[0].scatter(true_g1, y1, c=dataframe[color_column][:], cmap='cividis')
+        im = axs[1].scatter(true_g2, y2, c=dataframe[color_column][:], cmap='cividis')
+        cbaxes = fig.add_axes([0.2, 0.05, 0.6, 0.01])
+        cb = fig.colorbar(im, ax=axs[:], orientation='horizontal', shrink=0.45, cax=cbaxes)
+        cb.set_label(color_column)
+    
+    else:
+        im = axs[0].scatter(true_g1, y1, c='r', label='m')
+        im = axs[1].scatter(true_g2, y2, c='r', label='m')
+
+    plt.subplots_adjust(hspace=2.0, wspace=0.3)
+
+    idx1 = np.nonzero(true_g1) 
+    idx2 = np.nonzero(true_g2)
+
+    print(true_g1)
+    print(true_g2)
+
+    # import pdb;pdb.set_trace()
+
+    a1, b1, c1 = np.polyfit(true_g1[idx1], y1[idx1], 2)
+    a2, b2, c2 = np.polyfit(true_g2[idx2], y2[idx2], 2)
+
+    x = np.linspace(-0.05, 0.05, 20)
+
+
+    axs[0].plot(x, a1*x*x + b1*x + c1, c='k', label=f"a1 = {a1:.2f} \n b1 = {b1:.2f} \n c1 = {c1:.2f}", zorder=0)
+    axs[1].plot(x, a2*x*x + b2*x + c2, c='k', label=f"a2 = {a2:.2f} \n b2 = {b2:.2f} \n c1 = {c2:.2f}", zorder=0)
+    axs[0].legend()
+    axs[1].legend()
+
+
+
+    fig.suptitle(r'$m = (\frac{{g_i,}_{est} - {g_i,}_{est}}{{g_i,}_{true}})$ by element')
+
+    if save:
+        save_fig_to_plots(plotname)
+    
+    plt.show()
+   
+
+
 def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_scale=0.2, cshear_dg=0.01):
     """
     INCOMPLETE
@@ -223,17 +317,41 @@ def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_sca
     print(dataframe.columns)
     print(dataframe.shape)
 
+    dataframe['gal_sigma'] = [gal.sigma for gal in dataframe['original_gal']]
+    dataframe['psf_sigma'] = [psf.sigma for psf in dataframe['true_psf']]
+    dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['psf_sigma']
+  
     filtered = dataframe
+    
+        # print(dataframe['gal_psf_ratio'])
+    ratio_criterion = filtered['gal_psf_ratio'].map(lambda ratio: abs(ratio - 2.0) < 0.001)
+    filtered = filtered[ratio_criterion]
+
+    # # filter by absolute galaxy size as well
+    # size_criterion = filtered['gal_sigma'].map(lambda sigma: abs(sigma - 1.019108) < 0.00001)
+    # filtered = filtered[size_criterion]
+
+    print(np.mean(filtered.gal_sigma))
+    
     # pixel scale filter
-    filtered = filtered[filtered['pixel_scale'] == pixel_scale]
+    filtered_by_pixel = filtered[filtered['pixel_scale'] == pixel_scale]
 
     # cshear_dg filter
-    filtered = filtered[filtered['cshear_dg1'] == cshear_dg]
+    criterion1 = filtered_by_pixel['cshear_dg1'].map(lambda x: x == cshear_dg or x == 0.0)
+    criterion2 = filtered_by_pixel['cshear_dg2'].map(lambda x: x == cshear_dg or x == 0.0)
 
-    all_gaussian_different_ellipticies(filtered, filename)
+    filtered_by_cshear = filtered_by_pixel[criterion1]
+    filtered_by_cshear = filtered_by_pixel[criterion2]
+
     
-    pass
+    # print(filtered.shape)
 
+    filtered_final = filtered_by_cshear.reset_index(drop=True)
+    # print(filtered['reconvolved_noshear_e1'])
+
+    # all_gaussian_different_ellipticies_log_m(filtered, filename)
+    all_gaussian_different_ellipticities_m(filtered_final, 'gal_psf_ratio', filename, color=True, save=False) # change back to filtered if needed
+    
 def generate_images(dataframe):
     """
     Generates images of one of the cases where R11 and R22 were the highest
@@ -310,9 +428,10 @@ def master_plotting(dataframe, filename):
     # all_gaussian(dataframe)
     # all_moffat(dataframe)
     # generate_images(dataframe)
-    # all_gaussian_different_ellipticies(dataframe, filename)
-    all_gaussian_varying_cshear_oshear_pixelscale(dataframe, 'test')
-
+    # all_gaussian_different_ellipticies_log_m(dataframe, filename)
+    # all_gaussian_varying_cshear_oshear_pixelscale(dataframe, 'test')
+    # all_gaussian_different_ellipticies_m(dataframe, filename)
+    all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_scale=0.02, cshear_dg=0.01)
 
 def pickle_to_modified_dataframe(filename):
     """
