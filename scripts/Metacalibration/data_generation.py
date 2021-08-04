@@ -115,8 +115,8 @@ def response_accuracy_test_0(pixel_scale):
     # going back to all-Gaussian galaxies
 
     gal_flux = 1.e5
-    cshear_dg = [0.05]
-    # cshear_dg = [0.01]
+    # cshear_dg = [0.05]
+    cshear_dg = [0.01]
 
 
     gal_psf_ratios = np.arange(0.5, 2.1, 0.1)

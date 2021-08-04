@@ -213,7 +213,7 @@ def all_gaussian_different_ellipticies_log_m(dataframe, plotname):
     plt.show()
    
 
-def all_gaussian_different_ellipticities_m(dataframe, color_column, plotname, color=True, save=False):
+def all_gaussian_different_ellipticities_m(dataframe, plotname, color_column=None, save=False):
     """
     Takes in the master dataframe, and generates a plot of m = (estimated_gi - true_gi) / true_gi
     for each element
@@ -243,6 +243,10 @@ def all_gaussian_different_ellipticities_m(dataframe, color_column, plotname, co
 
     estimated_g1 = estimated_e1 / 2
     estimated_g2 = estimated_e2 / 2
+	
+	# FIX!
+    # estimated_g1 = estimated_e1 
+    # estimated_g2 = estimated_e2
 
     true_g1 = dataframe['oshear_g1'].to_numpy()[:]
     true_g2 = dataframe['oshear_g2'].to_numpy()[:]
@@ -267,7 +271,7 @@ def all_gaussian_different_ellipticities_m(dataframe, color_column, plotname, co
     y1 = (estimated_g1 - true_g1)/true_g1
     y2 = (estimated_g2 - true_g2)/true_g2
 
-    if color:
+    if color_column != None:
         im = axs[0].scatter(true_g1, y1, c=dataframe[color_column][:], cmap='cividis')
         im = axs[1].scatter(true_g2, y2, c=dataframe[color_column][:], cmap='cividis')
         cbaxes = fig.add_axes([0.2, 0.05, 0.6, 0.01])
@@ -308,7 +312,6 @@ def all_gaussian_different_ellipticities_m(dataframe, color_column, plotname, co
     
     plt.show()
    
-
 
 def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_scale=0.2, cshear_dg=0.01):
     """
@@ -352,6 +355,7 @@ def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_sca
     # all_gaussian_different_ellipticies_log_m(filtered, filename)
     all_gaussian_different_ellipticities_m(filtered_final, 'gal_psf_ratio', filename, color=True, save=False) # change back to filtered if needed
     
+
 def generate_images(dataframe):
     """
     Generates images of one of the cases where R11 and R22 were the highest
@@ -430,8 +434,8 @@ def master_plotting(dataframe, filename):
     # generate_images(dataframe)
     # all_gaussian_different_ellipticies_log_m(dataframe, filename)
     # all_gaussian_varying_cshear_oshear_pixelscale(dataframe, 'test')
-    # all_gaussian_different_ellipticies_m(dataframe, filename)
-    all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_scale=0.02, cshear_dg=0.01)
+    all_gaussian_different_ellipticities_m(dataframe, filename)
+    # all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_scale=0.02, cshear_dg=0.01)
 
 def pickle_to_modified_dataframe(filename):
     """

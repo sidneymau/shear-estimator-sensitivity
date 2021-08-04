@@ -145,8 +145,7 @@ def metacalibration(original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, ps
 
 	tuples are added to the results list
 	"""
-	cosmic_sheared_galaxy = original_gal.shear(g1=oshear_delta_g1, g2=oshear_delta_g2)
-	observed_galaxy_profile = generate_observed_galaxy(cosmic_sheared_galaxy, true_psf, oshear_delta_g1, oshear_delta_g2)
+	observed_galaxy_profile = generate_observed_galaxy(original_gal, true_psf, oshear_delta_g1, oshear_delta_g2)
 
 	g1pm, g2pm, reconvolved_noshear = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, cshear_delta_g1, cshear_delta_g2)
 	R, noshear_e1, noshear_e2 = shear_response(g1pm, g2pm, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale)
