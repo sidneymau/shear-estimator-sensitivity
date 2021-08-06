@@ -131,10 +131,7 @@ def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_del
 	noshear_e1 = noshear_moments.corrected_e1
 	noshear_e2 = noshear_moments.corrected_e2
 
-
-
 	return R, noshear_e1, noshear_e2
-
 
 def metacalibration(original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, psf_deconvolve, psf_reconvolve, psf_shearestimator, cshear_delta_g1, cshear_delta_g2, shearestimator, pixel_scale):
 	"""
@@ -153,7 +150,9 @@ def metacalibration(original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, ps
 	# helps to see that the multiprocessing is running
 	print(R)
 
-	return (original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, psf_deconvolve, psf_reconvolve, psf_shearestimator, cshear_delta_g1, cshear_delta_g2, shearestimator, pixel_scale, R, reconvolved_noshear, noshear_e1, noshear_e2) 
+	return (original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, psf_deconvolve,
+			psf_reconvolve, psf_shearestimator, cshear_delta_g1, cshear_delta_g2, shearestimator,
+			pixel_scale, R, reconvolved_noshear, noshear_e1, noshear_e2) 
 
 
 def main():
