@@ -92,11 +92,81 @@ def plot_R_elements(dataframe, xaxis_column, color_column, filename, x_units='',
     cb.set_label(f"{color_column} [{color_units}]")
     fig.suptitle(f"Shear response matrix element values vs {xaxis_column}")
 
-    save_fig_to_plots(filename)
+    # save_fig_to_plots(filename)
 
     plt.show()
 
 
+def plot_quadratic_m(dataframe, true_g1, true_g2, estimated_g1, estimated_g2, color_column=None, plotname=None):
+    """
+    Takes in numpy arrays of true_gi and estimated_gi, and makes a plot with a quadratic fit
+    
+    :dataframe:    pandas df.   master pandas dataframe
+    :true_g1:      Numpy array. true_g1 values
+    :true_g2:      Numpy array. true_g2 values
+    :estimated_g1: Numpy array. estimated_g1 values
+    :estimated_g2: Numpy array. estimated_g2 values
+    :color_column: string.      name of the column in the dataframe to differentiate by color
+    :plotname:     string.      If this optional argument is given, the plot will be saved to plots with this name
+    """
+
+    fig, axs = plt.subplots(1, 2, figsize=(20, 10))
+
+    # axs[0].scatter(true_g1, estimated_g1 - true_g1)
+    axs[0].set_xlabel('true_g1')
+    axs[0].set_ylabel('[(estimated_g1 - true_g1)/true_g1]' )
+    axs[0].set_ylabel(r'$m = (\frac{{g_1}_{est} - {g_1}_{true}}{{g_1}_{true}})$')
+    axs[0].set_title('g1')
+    # axs[1].scatter(true_g2, estimated_g2 - true_g2)
+    axs[1].set_xlabel('true_g2')
+    axs[1].set_ylabel(r'$m = (\frac{{g_2}_{est} - {g_2}_{true}}{{g_2}_{true}})$')
+    axs[1].set_title('g2')
+
+    y1 = (estimated_g1 - true_g1)/true_g1
+    y2 = (estimated_g2 - true_g2)/true_g2
+
+    if color_column is not None:
+        im = axs[0].scatter(true_g1, y1, c=dataframe[color_column][:], cmap='cividis')
+        im = axs[1].scatter(true_g2, y2, c=dataframe[color_column][:], cmap='cividis')
+        cbaxes = fig.add_axes([0.2, 0.05, 0.6, 0.01])
+        cb = fig.colorbar(im, ax=axs[:], orientation='horizontal', shrink=0.45, cax=cbaxes)
+        cb.set_label(color_column)
+    
+    else:
+        im = axs[0].scatter(true_g1, y1, c='r', label='m')
+        im = axs[1].scatter(true_g2, y2, c='r', label='m')
+
+    plt.subplots_adjust(hspace=2.0, wspace=0.3)
+
+    idx1 = np.nonzero(true_g1) 
+    idx2 = np.nonzero(true_g2)
+
+    a1, b1, c1 = np.polyfit(true_g1[idx1], y1[idx1], 2)
+    a2, b2, c2 = np.polyfit(true_g2[idx2], y2[idx2], 2)
+
+    x = np.linspace(-0.05, 0.05, 20)
+
+
+    axs[0].plot(x, a1*x*x + b1*x + c1, c='k', label=f"a1 = {a1:.2f} \n b1 = {b1:.2f} \n c1 = {c1:.2f}", zorder=0)
+    axs[1].plot(x, a2*x*x + b2*x + c2, c='k', label=f"a2 = {a2:.2f} \n b2 = {b2:.2f} \n c1 = {c2:.2f}", zorder=0)
+    axs[0].legend()
+    axs[1].legend()
+
+
+
+    fig.suptitle(r'$m = (\frac{{g_i,}_{est} - {g_i,}_{true}}{{g_i,}_{true}})$ by element')
+
+
+    # for ax in axs:
+    #     ax.tick_params(bottom=False, top=False, left=False, right=False,
+    #                 labelbottom=False, labeltop=False, labelleft=False, labelright=False)
+
+    if plotname is not None:
+        save_fig_to_plots(plotname)
+    
+
+    plt.show()
+   
 
 def all_gaussian(dataframe):
     """
@@ -107,7 +177,7 @@ def all_gaussian(dataframe):
     dataframe['gal_sigma'] = [gal.sigma for gal in dataframe['original_gal']]
     dataframe['psf_sigma'] = [psf.sigma for psf in dataframe['true_psf']]
     dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['psf_sigma']
-
+  
     plot_R_elements(dataframe, 'gal_psf_ratio', 'gal_sigma', 'all_gaussian_gal_psf_ratio')
     
 
@@ -126,12 +196,19 @@ def all_moffat(dataframe):
 
     plot_R_elements(dataframe, 'gal_psf_ratio', 'gal_fwhm', 'moffat_psfs_gal_psf_ratio')
     
+# TODO write a function that takes in a dataframe and generates arrays for
+# estimated g1 and estimated g2
 
-def all_gaussian_different_ellipticies_log_m(dataframe, plotname):
+# TODO write a function that takes in the estimated g1 and estimated g2 arrays and then plot m
+
+def estimated_gi(dataframe):
     """
-    Takes in the master dataframe, and generates a plot of m = (estimated_gi - true_gi) / true_gi
-    for each element
+    Takes in the master dataframe, and returns two numpy arrays of the estimated
+    g1 and g2
+
+    :dataframe: pandas dataframe 
     """
+
 
     R_inv_list = [np.linalg.inv(R) for R in dataframe['R']]
     R_inv_array = np.asarray(R_inv_list)
@@ -149,27 +226,31 @@ def all_gaussian_different_ellipticies_log_m(dataframe, plotname):
     estimated_e1 = estimated_shear_array[:,0, 0]
     estimated_e2 = estimated_shear_array[:,1, 0]
 
+	# Accounting for the fact that e ~ 2g --> g ~ e/2
     estimated_g1 = estimated_e1 / 2
     estimated_g2 = estimated_e2 / 2
 
-    true_g1 = dataframe['oshear_g1'].to_numpy()[:]
-    true_g2 = dataframe['oshear_g2'].to_numpy()[:]
+    return estimated_g1, estimated_g2
 
-    # print(estimated_g1)
-    # print(estimated_g2)
-    # print(true_g1)
-    # print(true_g2)
+
+def all_gaussian_different_ellipticies_log_m(dataframe, plotname):
+    """
+    Takes in the master dataframe, and generates a plot of m = (estimated_gi - true_gi) / true_gi
+    for each element
+    """
+
+    estimated_g1, estimated_g2 = estimated_gi(dataframe)
 
     fig, axs = plt.subplots(1, 2, figsize=(15, 9))
 
     # axs[0].scatter(true_g1, estimated_g1 - true_g1)
     axs[0].set_xlabel('true_g1')
     axs[0].set_ylabel('[(estimated_g1 - true_g1)/true_g1]' )
-    axs[0].set_ylabel(r'$(\frac{{g_1}_{est} - {g_1}_{est}}{{g_1}_{true}})$')
+    axs[0].set_ylabel(r'$(\frac{{g_1}_{est} - {g_1}_{true}}{{g_1}_{true}})$')
     axs[0].set_title('g1')
     # axs[1].scatter(true_g2, estimated_g2 - true_g2)
     axs[1].set_xlabel('true_g2')
-    axs[1].set_ylabel(r'$(\frac{{g_2}_{est} - {g_2}_{est}}{{g_2}_{true}})$')
+    axs[1].set_ylabel(r'$(\frac{{g_2}_{est} - {g_2}_{true}}{{g_2}_{true}})$')
     axs[1].set_title('g2')
 
     y1 = (estimated_g1 - true_g1)/true_g1
@@ -206,114 +287,28 @@ def all_gaussian_different_ellipticies_log_m(dataframe, plotname):
     cb = fig.colorbar(im, ax=axs[:], orientation='horizontal', shrink=0.45) #, cax=cbaxes)
     cb.set_label('galaxy size to psf size ratio')
 
-    fig.suptitle(r'$(\frac{{g_i,}_{est} - {g_i,}_{est}}{{g_i,}_{true}})$ by element')
+    fig.suptitle(r'$(\frac{{g_i,}_{est} - {g_i,}_{true}}{{g_i,}_{true}})$ by element')
 
     # save_fig_to_plots(plotname)
     
     plt.show()
    
 
-def all_gaussian_different_ellipticities_m(dataframe, plotname, color_column=None, save=False):
+def all_gaussian_different_ellipticities_m(dataframe, plotname=None, color_column=None):
     """
     Takes in the master dataframe, and generates a plot of m = (estimated_gi - true_gi) / true_gi
     for each element
     """ 
 
-
-    # criterion1 = dataframe['gal_sigma'].map(lambda sigma: abs(sigma - 0.424628 < 0.01))
-    # dataframe = dataframe[criterion1]
-
-    R_inv_list = [np.linalg.inv(R) for R in dataframe['R']]
-    R_inv_array = np.asarray(R_inv_list)
-   
-    
-    estimated_ellip_vec_list = []
-    for i in range(len(dataframe['R'])):
-        e1 = dataframe['reconvolved_noshear_e1'].to_numpy()[i]
-        e2 = dataframe['reconvolved_noshear_e2'].to_numpy()[i]
-        estimated_ellip_vec_list.append(np.array([[e1],[e2]]))
-    
-    estimated_ellip_vec_array = np.asarray(estimated_ellip_vec_list)
-   
-    estimated_shear_array = R_inv_array @ estimated_ellip_vec_array
-
-
-    estimated_e1 = estimated_shear_array[:,0, 0]
-    estimated_e2 = estimated_shear_array[:,1, 0]
-
-    estimated_g1 = estimated_e1 / 2
-    estimated_g2 = estimated_e2 / 2
-	
-	# FIX!
-    # estimated_g1 = estimated_e1 
-    # estimated_g2 = estimated_e2
+    estimated_g1, estimated_g2 = estimated_gi(dataframe)
 
     true_g1 = dataframe['oshear_g1'].to_numpy()[:]
     true_g2 = dataframe['oshear_g2'].to_numpy()[:]
 
-    # print(estimated_g1)
-    # print(estimated_g2)
-    # print(true_g1)
-    # print(true_g2)
+    plot_quadratic_m(dataframe, true_g1, true_g2, estimated_g1, estimated_g2,
+                    color_column=color_column, plotname=plotname)
 
-    fig, axs = plt.subplots(1, 2, figsize=(20, 10))
-
-    # axs[0].scatter(true_g1, estimated_g1 - true_g1)
-    axs[0].set_xlabel('true_g1')
-    axs[0].set_ylabel('[(estimated_g1 - true_g1)/true_g1]' )
-    axs[0].set_ylabel(r'$m = (\frac{{g_1}_{est} - {g_1}_{est}}{{g_1}_{true}})$')
-    axs[0].set_title('g1')
-    # axs[1].scatter(true_g2, estimated_g2 - true_g2)
-    axs[1].set_xlabel('true_g2')
-    axs[1].set_ylabel(r'$m = (\frac{{g_2}_{est} - {g_2}_{est}}{{g_2}_{true}})$')
-    axs[1].set_title('g2')
-
-    y1 = (estimated_g1 - true_g1)/true_g1
-    y2 = (estimated_g2 - true_g2)/true_g2
-
-    if color_column != None:
-        im = axs[0].scatter(true_g1, y1, c=dataframe[color_column][:], cmap='cividis')
-        im = axs[1].scatter(true_g2, y2, c=dataframe[color_column][:], cmap='cividis')
-        cbaxes = fig.add_axes([0.2, 0.05, 0.6, 0.01])
-        cb = fig.colorbar(im, ax=axs[:], orientation='horizontal', shrink=0.45, cax=cbaxes)
-        cb.set_label(color_column)
-    
-    else:
-        im = axs[0].scatter(true_g1, y1, c='r', label='m')
-        im = axs[1].scatter(true_g2, y2, c='r', label='m')
-
-    plt.subplots_adjust(hspace=2.0, wspace=0.3)
-
-    idx1 = np.nonzero(true_g1) 
-    idx2 = np.nonzero(true_g2)
-
-    print(true_g1)
-    print(true_g2)
-
-    # import pdb;pdb.set_trace()
-
-    a1, b1, c1 = np.polyfit(true_g1[idx1], y1[idx1], 2)
-    a2, b2, c2 = np.polyfit(true_g2[idx2], y2[idx2], 2)
-
-    x = np.linspace(-0.05, 0.05, 20)
-
-
-    axs[0].plot(x, a1*x*x + b1*x + c1, c='k', label=f"a1 = {a1:.2f} \n b1 = {b1:.2f} \n c1 = {c1:.2f}", zorder=0)
-    axs[1].plot(x, a2*x*x + b2*x + c2, c='k', label=f"a2 = {a2:.2f} \n b2 = {b2:.2f} \n c1 = {c2:.2f}", zorder=0)
-    axs[0].legend()
-    axs[1].legend()
-
-
-
-    fig.suptitle(r'$m = (\frac{{g_i,}_{est} - {g_i,}_{est}}{{g_i,}_{true}})$ by element')
-
-    if save:
-        save_fig_to_plots(plotname)
-    
-    plt.show()
-   
-
-def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_scale=0.2, cshear_dg=0.01):
+def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, pixel_scale=0.2, cshear_dg=0.01, filename=None):
     """
     INCOMPLETE
     """
@@ -334,7 +329,7 @@ def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_sca
     # size_criterion = filtered['gal_sigma'].map(lambda sigma: abs(sigma - 1.019108) < 0.00001)
     # filtered = filtered[size_criterion]
 
-    print(np.mean(filtered.gal_sigma))
+    # print(np.mean(filtered.gal_sigma))
     
     # pixel scale filter
     filtered_by_pixel = filtered[filtered['pixel_scale'] == pixel_scale]
@@ -353,8 +348,30 @@ def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_sca
     # print(filtered['reconvolved_noshear_e1'])
 
     # all_gaussian_different_ellipticies_log_m(filtered, filename)
-    all_gaussian_different_ellipticities_m(filtered_final, 'gal_psf_ratio', filename, color=True, save=False) # change back to filtered if needed
+    all_gaussian_different_ellipticities_m(filtered_final, color_column='gal_psf_ratio', plotname=filename) # change back to filtered if needed
     
+
+def all_moffat_different_ellipticities_m():
+    """
+    Takes in the  master data frame, and generates a plot of m = (estimated_gi - true_gi) / true_gi
+    for each element
+    """
+    
+    estimated_g1, estimated_g2 = estimated_gi(dataframe)
+
+    true_g1 = dataframe['oshear_g1'].to_numpy()
+    true_g2 = dataframe['oshear_g2'].to_numpy()
+
+    # use function that plots quadratics
+
+
+
+
+
+    pass
+    # TODO FINISH THIS FUNCTION
+
+
 
 def generate_images(dataframe):
     """
@@ -434,7 +451,7 @@ def master_plotting(dataframe, filename):
     # generate_images(dataframe)
     # all_gaussian_different_ellipticies_log_m(dataframe, filename)
     # all_gaussian_varying_cshear_oshear_pixelscale(dataframe, 'test')
-    all_gaussian_different_ellipticities_m(dataframe, filename)
+    all_gaussian_different_ellipticities_m(dataframe, plotname=filename) 
     # all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename, pixel_scale=0.02, cshear_dg=0.01)
 
 def pickle_to_modified_dataframe(filename):
