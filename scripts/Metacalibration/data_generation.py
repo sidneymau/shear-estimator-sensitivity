@@ -58,45 +58,45 @@ def all_gaussian_combinations():
     return combinations
 
 
-def moffat_psf_combinations():
-    """
+# def moffat_psf_combinations(pixel_scale):
+#     """
+# 
+#     Generates combinations with:
+# 
+#     - all gaussian source galaxies
+#     - all Moffat PSFs
+#     - NO INITIAL COSMIC SHEAR
+#     - Calibration shear magnitude of 0.01
+#     - constant dilation factor of 1.2 * size of deconv PSF
+#     - pixel scale of 0.2
+#     - 'REGAUSS' shape measurement algorithm.
+# 
+#     """
+# 
+#     gal_flux = 1.e5
+#     dg = [0.01]
+#     dilation_factor = 1.2
+#     psf_beta = 5.
+# 
+#     gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
+#     true_psf_fwhm =  np.arange(0.5, 1.3, 0.1)
+#     reconv_psf_fwhm = dilation_factor * true_psf_fwhm
+# 
+#     combinations = []
+#     for ratio in gal_psf_ratios:        # gal_sigma / psf_sigma should be equal to ratio
+#         for i in range(len(true_psf_fwhm)):
+#             for delta_g in dg:
+#                 original_gal = galsim.Gaussian(flux=gal_flux, fwhm=true_psf_fwhm[i] * ratio)
+#                 true_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=true_psf_fwhm[i])
+#                 deconv_psf = true_psf
+#                 reconv_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=reconv_psf_fwhm[i])
+# 
+#                 combinations.append((original_gal, 0.0, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, delta_g, delta_g, 'REGAUSS', pixel_scale))
+# 
+#     return combinations
 
-    Generates combinations with:
 
-    - all gaussian source galaxies
-    - all Moffat PSFs
-    - NO INITIAL COSMIC SHEAR
-    - Calibration shear magnitude of 0.01
-    - constant dilation factor of 1.2 * size of deconv PSF
-    - pixel scale of 0.2
-    - 'REGAUSS' shape measurement algorithm.
-
-    """
-
-    gal_flux = 1.e5
-    dg = [0.01]
-    dilation_factor = 1.2
-    psf_beta = 5.
-
-    gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
-    true_psf_fwhm =  np.arange(0.5, 1.3, 0.1)
-    reconv_psf_fwhm = dilation_factor * true_psf_fwhm
-
-    combinations = []
-    for ratio in gal_psf_ratios:        # gal_sigma / psf_sigma should be equal to ratio
-        for i in range(len(true_psf_fwhm)):
-            for delta_g in dg:
-                original_gal = galsim.Gaussian(flux=gal_flux, fwhm=true_psf_fwhm[i] * ratio)
-                true_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=true_psf_fwhm[i])
-                deconv_psf = true_psf
-                reconv_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=reconv_psf_fwhm[i])
-
-                combinations.append((original_gal, 0.0, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, delta_g, delta_g, 'REGAUSS', 0.2))
-
-    return combinations
-
-
-def response_accuracy_test_0(pixel_scale):
+def response_accuracy_test_gaussian(pixel_scale):
     """
 
     Generates combinations with:
@@ -139,6 +139,55 @@ def response_accuracy_test_0(pixel_scale):
                     true_psf = galsim.Gaussian(flux=gal_flux, sigma=true_psf_sigmas[i])
                     deconv_psf = true_psf
                     reconv_psf = galsim.Gaussian(flux=gal_flux, sigma=dilation_factor * true_psf_sigmas[i])
+                    
+                    combinations.append((original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, 'REGAUSS', pixel_scale))
+                    combinations.append((original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, 'REGAUSS', pixel_scale))
+
+    return combinations
+
+
+def response_accuracy_test_moffat(pixel_scale):
+    """
+
+    Generates combinations with:
+
+    - all Gaussian source galaxies
+    - all Moffat PSFs
+    - initial cosmic shear from -0.05 to 0.05 for g1 and g2, one at a time
+    - Calibration shear magnitude of 0.01 or 0.05
+    - variable dilation factor (from Huff & Mandelbaum 2017)
+    - variable pixel_scale (parameter)
+    - 'REGAUSS' shape measurement algorithm.
+
+    """
+
+    # going back to all-Gaussian galaxies
+
+    gal_flux = 1.e5
+    # cshear_dg = [0.05]
+    cshear_dg = [0.01]
+
+
+    gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
+    true_psf_fwhm = np.arange(0.5, 1.3, 0.1)  # 0.5 - 1.3 arcseconds fwhm converted to sigma
+    
+
+    combinations = []
+
+	# excluding values of zero because they create problems
+    oshear_dgs = [i for i in np.arange(-0.05, 0.06, 0.01) if not abs(i) < 0.001]
+
+    for ratio in gal_psf_ratios:        # gal_sigma / psf_sigma should be equal to ratio
+        for i in range(len(true_psf_fwhm)):
+            for cshear_delta_g in cshear_dg:
+                for oshear_dg in oshear_dgs: 
+
+                    dilation_factor = dilation_factor = 1 / (1 - 2 * cshear_delta_g)
+
+                    original_gal = galsim.Gaussian(flux=gal_flux, sigma=true_psf_fwhm[i] * ratio)
+                    true_psf = galsim.Gaussian(flux=gal_flux, sigma=true_psf_fwhm[i])
+                    deconv_psf = true_psf
+                    reconv_psf = galsim.Gaussian(flux=gal_flux, sigma=dilation_factor * true_psf_fwhm[i])
                     
                     combinations.append((original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, 'REGAUSS', pixel_scale))
                     combinations.append((original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, 'REGAUSS', pixel_scale))
@@ -281,10 +330,10 @@ def main():
         # combinations = generate_combinations()
         # combinations = sanity_check1()
         # combinations = all_gaussian_combinations()
-        # combinations = moffat_psf_combinations()
-        combinations = response_accuracy_test_0(0.2)
+        # combinations = moffat_psf_combinations(0.2)
+        # combinations = response_accuracy_test_gaussian(0.2)
         # combinations = response_accuracy_test_better()
-
+        combinations = response_accuracy_test_moffat(0.2)
 
         # Stuff for my sanity
         # naming the pickle file according to cmd line argument
