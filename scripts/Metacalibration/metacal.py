@@ -13,6 +13,23 @@ def generate_observed_galaxy(source_galaxy, psf_blur, lensing_g1, lensing_g2):
 	Takes in a source_galaxy and psf_blur GalSim objects as well as the parameters
 	g1 and g2 of the lensing shear and generates a new GalSim object representing
 	an observed galaxy
+
+    Parameters:
+
+        source_galaxy: galsim object   The original galaxy, with no cosmic shear applied.
+
+        psf_blur:      galsim object   The true PSF (\Gamma 1)
+
+        g1:            float           Cosmic shear g1
+
+        g2:            float           Cosmic shear g2
+
+    
+    Returns:
+
+        observed:      galsim object   The galaxy as would be seen through a telescope with no corrections
+                                       (cosmic shear applied, PSF applied)
+
 	"""
 	# shearing the original galaxy
 	sheared = source_galaxy.shear(g1=lensing_g1, g2=lensing_g2)
@@ -29,6 +46,28 @@ def delta_shear(observed_gal, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2
 	and re-convolving), and the amount by which to shift g1 and g2, and returns
 	a tuple of tuples of modified galaxy objects.
 	((g1plus, g1minus), (g2plus, g2minus))
+
+    Parameters:
+
+        observed_gal:   galsim object   The observed galaxy (cosmic shear and true_psf already applied)
+
+        psf_deconvolve: galsim object   The PSF chosen for deconvolution in metacal (\Gamma 2)
+
+        psf_reconvolve: galsim object   The reconvolution PSF (\Gamma 3) 
+
+        delta_g1:       float           Calibration shear g1
+
+        delta_g2:       float           Calibration shear g2
+
+
+    Returns:
+
+        g1_plus_minus:          tuple of galsim objects     (sheared with +dg1, sheared with -dg1)
+        
+        g2_plus_minus:          tuple of galsim objects     (sheared with +dg2, sheared with -dg2)
+
+        reconvolved_noshear:    galsim_object               (unsheared, for accuracy tests) 
+
 	"""
 	# Deconvolving by psf_deconvolve
 	inv_psf = galsim.Deconvolve(psf_deconvolve)
@@ -64,11 +103,39 @@ def delta_shear(observed_gal, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2
 	return g1_plus_minus, g2_plus_minus, reconvolved_noshear
 
 
-def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale): #TODO change this back to 0.2
+def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale): 
 	"""
 	Takes in the a tuple of the g1 plus/minus objects and
 	a tuple of the g2 plus/minus objects and returns the
 	shear response matrix R
+
+    Parameters:
+    
+        g1_plus_minus:          tuple of galsim objects
+
+        g2_plus_minus:          tuple of galsim objects
+
+        reconvolved_noshear:
+
+        cshear_delta_g1:
+
+        cshear_delta_g2:
+
+        psf_shearestimator:
+
+        shearestimator:
+
+        pixel_scale:
+        
+
+    Returns:
+
+        R:              2D numpy array      The calculated shear response matrix 
+
+        noshear_e1:     float               The measured shape (distortion, first component) of the galaxy to which no calibration shear was applied
+
+        noshear_e2:     float               The measured shape (distortion, second component) of the galaxy to which no calibration shear was applied
+
 	"""
 
 	plus_g1_gal = g1_plus_minus[0]
@@ -86,12 +153,6 @@ def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_del
 	plus_g2 = plus_g2_gal.drawImage(scale=pixel_scale, method='no_pixel')
 	minus_g2 = minus_g2_gal.drawImage(scale=pixel_scale, method='no_pixel')
 
-	# plus_moments_g1 = plus_g1.FindAdaptiveMom()
-	# minus_moments_g1 = minus_g1.FindAdaptiveMom()
-	#
-	# plus_moments_g2 = plus_g2.FindAdaptiveMom()
-	# minus_moments_g2 = minus_g2.FindAdaptiveMom()
-
 	psf_shearestimator_image = psf_shearestimator.drawImage(scale=pixel_scale)
 
 	plus_moments_g1 = galsim.hsm.EstimateShear(plus_g1, psf_shearestimator_image, shear_est=shearestimator)
@@ -99,11 +160,6 @@ def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_del
 	plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_shearestimator_image, shear_est=shearestimator)
 	minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_shearestimator_image, shear_est=shearestimator)
 
-	# plus_shape_g1 = plus_moments_g1.observed_shape
-	# minus_shape_g1 = minus_moments_g1.observed_shape
-	#
-	# plus_shape_g2 = plus_moments_g2.observed_shape
-	# minus_shape_g2 = minus_moments_g2.observed_shape
 
 	e1_plus_g1 = plus_moments_g1.corrected_e1
 	e2_plus_g1 = plus_moments_g1.corrected_e2
@@ -140,14 +196,42 @@ def metacalibration(original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, ps
 	on these parameters. The function prints and returns the shear response matrix R
 	as a numpy array.
 
-	tuples are added to the results list
+    Parameters:
+
+        original_gal:           galsim object       The original, unmodified galaxy (no cosmic shear, no PSF)
+
+        oshear_delta_g1:        float               Cosmic shear g1
+
+        oshear_delta_g2:        float               Cosmic shear g2
+
+        true_psf:               galsim object       The true PSF (\Gamma 1)
+
+        psf_deconvolve:         galsim object       The PSF by which to deconvolve during metacalibration (\Gamma 2)
+
+        psf_reconvolve:         galsim object       The PSF by which to reconvolve during metacalibration (\Gamma 3)
+
+        psf_shearestimator:     galsim object       The PSF used by the shear estimator (\Gamma 4)
+
+        cshear_delta_g1:        float               Calibration shear g1
+
+        cshear_delta_g2:        float               Calibration shear g2
+
+        shear_estimator:        string              Which galsim shape measurement to use (e.g. 'REGAUSS')
+
+        pixel_scale             float               The pixel scale, measured in arcseconds/pixel (0.2 for LSST) 
+
+
+    Returns:
+
+    
+
 	"""
 	observed_galaxy_profile = generate_observed_galaxy(original_gal, true_psf, oshear_delta_g1, oshear_delta_g2)
 
 	g1pm, g2pm, reconvolved_noshear = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, cshear_delta_g1, cshear_delta_g2)
 	R, noshear_e1, noshear_e2 = shear_response(g1pm, g2pm, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale)
 
-	# helps to see that the multiprocessing is running
+	# helps to see that things are running
 	print(R)
 
 	return (original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, psf_deconvolve,
