@@ -499,14 +499,37 @@ def main():
 
         return 0
 
-    if args[0] == '-sherlock':
+    elif args[0] == '-sherlock':
 
         # combinations = response_accuracy_test_better_gaussian()
         # combinations = response_accuracy_test_better_moffat()
-        combinations = response_accuracy_test_better_gaussian_REGAUSS_LINEAR_BJ()
+        # combinations = response_accuracy_test_better_gaussian_REGAUSS_LINEAR_BJ()
         # combinations = response_accuracy_test_better_moffat_REGAUSS_LINEAR_BJ()
 
-        vary_parameters(combinations, 'data.pickle')
+        # vary_parameters(combinations, 'data.pickle')
+
+        if args[1] == '-gaussian':
+            combinations = response_accuracy_test_better_gaussian_REGAUSS_LINEAR_BJ()
+            vary_parameters(combinations, 'gaussian_data.pickle')
+
+    
+        elif args[1] == '-moffat':
+            combinations = response_accuracy_test_better_moffat_REGAUSS_LINEAR_BJ()
+            vary_parameters(combinations, 'moffat_data.pickle')
+
+        else:
+            print('Did not specify -gaussian or -moffat !')
+
+
+    else:
+        print('Invalid first argument')
+        print('Use: -generate or -sherlock')
+
+
+
+
+
+
 
     ## Old Code ##
 
