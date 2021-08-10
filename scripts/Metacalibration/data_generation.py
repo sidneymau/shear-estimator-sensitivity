@@ -164,6 +164,7 @@ def response_accuracy_test_moffat(pixel_scale):
     # going back to all-Gaussian galaxies
 
     gal_flux = 1.e5
+    psf_beta = 5
     # cshear_dg = [0.05]
     cshear_dg = [0.01]
 
@@ -185,9 +186,9 @@ def response_accuracy_test_moffat(pixel_scale):
                     dilation_factor = dilation_factor = 1 / (1 - 2 * cshear_delta_g)
 
                     original_gal = galsim.Gaussian(flux=gal_flux, sigma=true_psf_fwhm[i] * ratio)
-                    true_psf = galsim.Moffat(flux=gal_flux, fwhm=true_psf_fwhm[i])
+                    true_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=true_psf_fwhm[i])
                     deconv_psf = true_psf
-                    reconv_psf = galsim.Moffat(flux=gal_flux, fwhm=dilation_factor * true_psf_fwhm[i])
+                    reconv_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=dilation_factor * true_psf_fwhm[i])
                     
                     combinations.append((original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, 'REGAUSS', pixel_scale))
                     combinations.append((original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, 'REGAUSS', pixel_scale))
@@ -260,6 +261,7 @@ def response_accuracy_test_better_moffat():
     """
 
     gal_flux = 1.e5
+    psf_beta = 5
     cshear_dg = np.arange(0.01, 0.11, 0.01)
 
     gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
@@ -279,9 +281,9 @@ def response_accuracy_test_better_moffat():
                         dilation_factor = 1 / (1 - 2 * cshear_delta_g)
                     
                         original_gal = galsim.Gaussian(flux=gal_flux, fwhm=true_psf_fwhms[i] * ratio)
-                        true_psf = galsim.Moffat(flux=gal_flux, fwhm=true_psf_fwhms[i])
+                        true_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=true_psf_fwhms[i])
                         deconv_psf = true_psf
-                        reconv_psf = galsim.Moffat(flux=gal_flux, fwhm=dilation_factor*true_psf_fwhms[i])
+                        reconv_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=dilation_factor*true_psf_fwhms[i])
 
                         combinations.append((original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, 'REGAUSS', pixel_scale))
                         combinations.append((original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, 'REGAUSS', pixel_scale))
@@ -306,6 +308,8 @@ def response_accuracy_test_better_moffat_REGAUSS_LINEAR_BJ():
     """
 
     gal_flux = 1.e5
+    psf_beta = 5
+
     cshear_dg = np.arange(0.01, 0.11, 0.01)
 
     gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
@@ -328,9 +332,9 @@ def response_accuracy_test_better_moffat_REGAUSS_LINEAR_BJ():
                             dilation_factor = 1 / (1 - 2 * cshear_delta_g)
                         
                             original_gal = galsim.Gaussian(flux=gal_flux, fwhm=true_psf_fwhms[i] * ratio)
-                            true_psf = galsim.Moffat(flux=gal_flux, fwhm=true_psf_fwhms[i])
+                            true_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=true_psf_fwhms[i])
                             deconv_psf = true_psf
-                            reconv_psf = galsim.Moffat(flux=gal_flux, fwhm=dilation_factor*true_psf_fwhms[i])
+                            reconv_psf = galsim.Moffat(flux=gal_flux, beta=psf_beta, fwhm=dilation_factor*true_psf_fwhms[i])
 
                             combinations.append((original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, shape_mes_alg, pixel_scale))
                             combinations.append((original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_delta_g, cshear_delta_g, shape_mes_alg, pixel_scale))
