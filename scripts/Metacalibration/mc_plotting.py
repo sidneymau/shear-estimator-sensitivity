@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 # matplotlib.rc('xtick', labelsize=20)
 # matplotlib.rc('ytick', labelsize=20)
-# plt.rcParams.update({'font.size': 18})
+plt.rcParams.update({'font.size': 14})
 
 import os.path
 import seaborn as sns
@@ -54,7 +54,12 @@ def generate_df(results):
     """
     # Loading the results table into a Pandas DataFrame
     results_df = pd.DataFrame(results, columns=['original_gal', 'oshear_g1', 'oshear_g2', 'true_psf', 'deconv_psf', 'reconv_psf', 'shear_estimation_psf', 'cshear_dg1', 'cshear_dg2', 'shear_estimator', 'pixel_scale', 'R', 'reconvolved_noshear', 'reconvolved_noshear_e1', 'reconvolved_noshear_e2'])
+
+    # Need to strip all columns with np.nan
+    results_df = results_df.dropna(axis=0, how='any')
+
     results_df = element_columns(results_df)
+
 
     return results_df
 
@@ -129,7 +134,7 @@ def plot_quadratic_m(dataframe, true_g1, true_g2, estimated_g1, estimated_g2, co
     """
     Takes in numpy arrays of true_gi and estimated_gi, and makes a plot with a quadratic fit
     
-    :dataframe:    pandas df.   master pandas dataframe
+    :dataframe:    pandas df.   pandas dataframe
     :true_g1:      Numpy array. true_g1 values
     :true_g2:      Numpy array. true_g2 values
     :estimated_g1: Numpy array. estimated_g1 values
@@ -154,11 +159,16 @@ def plot_quadratic_m(dataframe, true_g1, true_g2, estimated_g1, estimated_g2, co
     y2 = (estimated_g2 - true_g2)/true_g2
 
     if color_column is not None:
-        im = axs[0].scatter(true_g1, y1, c=dataframe[color_column][:], cmap='cividis')
-        im = axs[1].scatter(true_g2, y2, c=dataframe[color_column][:], cmap='cividis')
-        cbaxes = fig.add_axes([0.2, 0.05, 0.6, 0.01])
-        cb = fig.colorbar(im, ax=axs[:], orientation='horizontal', shrink=0.45, cax=cbaxes)
-        cb.set_label(color_column)
+        vmin = np.min(dataframe[color_column])
+        vmax = np.max(dataframe[color_column])
+        im0 = axs[0].scatter(true_g1, y1, c=dataframe[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
+        im1 = axs[1].scatter(true_g2, y2, c=dataframe[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
+        cbaxes0 = fig.add_axes([0.2, 0.05, 0.6, 0.01])
+        # cbaxes1 = fig.add_axes([0.2, 0.95, 0.6, 0.01])
+        cb0 = fig.colorbar(im0, ax=axs[:], orientation='horizontal', shrink=0.45, cax=cbaxes0)
+        # cb1 = fig.colorbar(im1, ax=axs[:], orientation='horizontal', shrink=0.45, cax=cbaxes1)
+        cb0.set_label(color_column)
+        # cb1.set_label(color_column)
     
     else:
         im = axs[0].scatter(true_g1, y1, c='r', label='m')
@@ -175,8 +185,11 @@ def plot_quadratic_m(dataframe, true_g1, true_g2, estimated_g1, estimated_g2, co
     x = np.linspace(-0.05, 0.05, 20)
 
 
-    axs[0].plot(x, a1*x*x + b1*x + c1, c='k', label=f"a1 = {a1:.2f} \n b1 = {b1:.2f} \n c1 = {c1:.2f}", zorder=0)
-    axs[1].plot(x, a2*x*x + b2*x + c2, c='k', label=f"a2 = {a2:.2f} \n b2 = {b2:.2f} \n c1 = {c2:.2f}", zorder=0)
+    # axs[0].plot(x, a1*x*x + b1*x + c1, c='k', label=f"a1 = {a1:.2f} \n b1 = {b1:.2f} \n c1 = {c1:.2f}", zorder=0)
+    # axs[1].plot(x, a2*x*x + b2*x + c2, c='k', label=f"a2 = {a2:.2f} \n b2 = {b2:.2f} \n c2 = {c2:.2f}", zorder=0)
+    axs[0].plot(x, a1*x*x + b1*x + c1, c='k', label=f"a1 = {a1:.2f} \n b1 = {b1} \n c1 = {c1}", zorder=0)
+    axs[1].plot(x, a2*x*x + b2*x + c2, c='k', label=f"a2 = {a2:.2f} \n b2 = {b2} \n c2 = {c2}", zorder=0)
+
     axs[0].legend()
     axs[1].legend()
 
@@ -195,6 +208,17 @@ def plot_quadratic_m(dataframe, true_g1, true_g2, estimated_g1, estimated_g2, co
 
     plt.show()
    
+
+def plot_gal_psf_size(dataframe, gal_size_column, psf_size_column):
+
+    fig, axs = plt.subplots(1, figsize=(5, 5))
+    axs = plt.scatter(dataframe[gal_size_column], dataframe[psf_size_column])
+    plt.show()
+
+
+
+
+
 
 def all_gaussian(dataframe):
     """
@@ -254,7 +278,7 @@ def estimated_gi(dataframe):
     estimated_g1 = estimated_shear_array[:,0, 0]
     estimated_g2 = estimated_shear_array[:,1, 0]
 
-	# # Accounting for the fact that e ~ 2g --> g ~ e/2
+    # # Accounting for the fact that e ~ 2g --> g ~ e/2
     # estimated_g1 = estimated_e1 / 2
     # estimated_g2 = estimated_e2 / 2
     
@@ -323,7 +347,7 @@ def all_gaussian_different_ellipticies_log_m(dataframe, plotname):
     plt.show()
    
 
-def all_gaussian_different_ellipticities_m(dataframe, plotname=None, color_column=None):
+def plot_different_ellipticities_m(dataframe, plotname=None, color_column=None):
     """
     Takes in the master dataframe, and generates a plot of m = (estimated_gi - true_gi) / true_gi
     for each element
@@ -377,25 +401,8 @@ def all_gaussian_varying_cshear_oshear_pixelscale(dataframe, pixel_scale=0.2, cs
     # print(filtered['reconvolved_noshear_e1'])
 
     # all_gaussian_different_ellipticies_log_m(filtered, filename)
-    all_gaussian_different_ellipticities_m(filtered_final, color_column='gal_psf_ratio', plotname=filename) # change back to filtered if needed
+    plot_different_ellipticities_m(filtered_final, color_column='gal_psf_ratio', plotname=filename) # change back to filtered if needed
     
-
-def all_moffat_different_ellipticities_m(dataframe):
-    """
-    Takes in the  master data frame, and generates a plot of m = (estimated_gi - true_gi) / true_gi
-    for each element
-    """
-    
-    dataframe['test'] = dataframe['true_psf'].map(lambda psf: psf.sigma)
-
-    estimated_g1, estimated_g2 = estimated_gi(dataframe)
-
-    true_g1 = dataframe['oshear_g1'].to_numpy()
-    true_g2 = dataframe['oshear_g2'].to_numpy()
-
-    print(dataframe.columns)
-    plot_quadratic_m(dataframe, true_g1, true_g2, estimated_g1, estimated_g2) # can eventually add color column and plotname
-
 
 def moffat_PSFs_varying_cshear_oshear_pixelscale(dataframe, pixel_scale=0.2, cshear_dg=0.01, filename=None):
     """
@@ -436,62 +443,242 @@ def moffat_PSFs_varying_cshear_oshear_pixelscale(dataframe, pixel_scale=0.2, csh
     # print(filtered['reconvolved_noshear_e1'])
 
     # all_gaussian_different_ellipticies_log_m(filtered, filename)
-    all_gaussian_different_ellipticities_m(filtered_final, color_column='gal_psf_ratio', plotname=filename) # change back to filtered if needed
+    plot_different_ellipticities_m(filtered_final, color_column='gal_psf_ratio', plotname=filename) # change back to filtered if needed
 
 
-def gaussian_all_shape_measures(dataframe, pixel_scale=0.2, cshear_dg=0.01, by_size=False, shear_est='all', filename=None):
+
+
+# TODO make a function that takes in a dataframe and pulls out the max and min of a certain column
+
+def max_min_table(dataframe, reference_column):
+    
+    max_val = np.max(dataframe[reference_column])
+    min_val = np.min(dataframe[reference_column])
+    
+    print(max_val)
+    print(min_val)
+    
+    dataframe = dataframe.reset_index(drop=True)
+    
+    max_criterion = dataframe[reference_column].apply(lambda val: abs(val - max_val) < 0.0001)
+    min_criterion = dataframe[reference_column].apply(lambda val: abs(val - min_val) < 0.0001)
+ 
+    # max_min_criterion = dataframe[reference_column].apply(lambda val: (abs(val - max_val) < 0.0001 or abs(val - min_val) < 0.0001))
+    
+    # import pdb; pdb.set_trace()
+
+    # print(max_min_criterion)
+
+    max_vals = dataframe[max_criterion]
+    min_vals = dataframe[min_criterion]
+
+    max_vals = max_vals.reset_index(drop=True)
+    min_vals = min_vals.reset_index(drop=True)
+
+    return min_vals, max_vals
+ 
+
+
+
+
+
+def gaussian_all_shape_measures(dataframe, pixel_scale=0.2, cshear_dg=0.01, by_ratio=False, by_size=False, shear_est='all', filename=None):
     """
     INCOMPLETE
     """
     print(dataframe.columns)
-    print(dataframe.shape)
+    print(f"Intial size: {dataframe.shape}")
 
-        
-
-
+    # creating columns
     dataframe['gal_sigma'] = [gal.sigma for gal in dataframe['original_gal']]
     dataframe['psf_sigma'] = [psf.sigma for psf in dataframe['true_psf']]
     dataframe['gal_psf_ratio'] = dataframe['gal_sigma'] / dataframe['psf_sigma']
   
+    # begin filtering
+
     filtered = dataframe
     
-    # filter by shear_estimator
-    if shear_est == 'all':
-        # don't filter
-        pass
 
-    else:
-        shear_est_criterion = filtered['shear_estimator'].map(lambda alg: alg == shear_est)
-        filtered = filtered[shear_est_criterion]
+    # filter by galaxy to psf size ratio
+    if by_ratio:
+        ratio_criterion = filtered['gal_psf_ratio'].map(lambda ratio: abs(ratio - 2.0) < 0.001)
+        filtered = filtered[ratio_criterion]
 
-
-    ratio_criterion = filtered['gal_psf_ratio'].map(lambda ratio: abs(ratio - 2.0) < 0.001)
-    filtered = filtered[ratio_criterion]
-
-    # filter by absolute galaxy size as well
+    # filter by absolute galaxy size
     if by_size:
         size_criterion = filtered['gal_sigma'].map(lambda sigma: abs(sigma - 1.019108) < 0.00001)
         filtered = filtered[size_criterion]
 
-    
-    # pixel scale filter
-    filtered_by_pixel = filtered[filtered['pixel_scale'] == pixel_scale]
+    # filter by pixel_scale
+    # filtered_by_pixel = filtered[filtered['pixel_scale'] == pixel_scale]
+    pixel_criterion = filtered['pixel_scale'].map(lambda scale: scale == pixel_scale)
+    filtered_by_pixel = filtered[pixel_criterion]
 
-    # cshear_dg filter
+
+    # filter by cshear_dg
     criterion1 = filtered_by_pixel['cshear_dg1'].map(lambda x: x == cshear_dg or x == 0.0)
     criterion2 = filtered_by_pixel['cshear_dg2'].map(lambda x: x == cshear_dg or x == 0.0)
 
     filtered_by_cshear = filtered_by_pixel[criterion1]
     filtered_by_cshear = filtered_by_pixel[criterion2]
 
-    
-    # print(filtered.shape)
+
+
+    # filter by shear_estimator
+    if shear_est == 'all':
+       
+        if filename is not None:
+
+            filename = f"{filename}_scale={pixel_scale}_cshear_dg={cshear_dg}"
+            REGAUSS_filename = filename + '_REGAUSS'
+            LINEAR_filename = filename + '_LINEAR'
+            BJ_filename = filename + '_BJ'
+        
+        else:
+            REGAUSS_filename = None
+            LINEAR_filename = None
+            BJ_filename = None
+ 
+        # PLOTTING REGAUSS
+        REGAUSS_criterion = filtered_by_cshear['shear_estimator'].map(lambda alg: alg == 'REGAUSS')
+        REGAUSS_only = filtered_by_cshear[REGAUSS_criterion]
+        REGAUSS_min, REGAUSS_max = max_min_table(REGAUSS_only, 'gal_psf_ratio')
+
+       #  import pdb; pdb.set_trace()
+
+        # REGAUSS_only_final = REGAUSS_only.reset_index(drop=True)
+
+        plot_different_ellipticities_m(REGAUSS_min, color_column='gal_psf_ratio', plotname=REGAUSS_filename + '_min') 
+        plot_gal_psf_size(REGAUSS_min, 'gal_sigma', 'psf_sigma')
+        plot_different_ellipticities_m(REGAUSS_max, color_column='gal_psf_ratio', plotname=REGAUSS_filename + '_max') 
+        plot_gal_psf_size(REGAUSS_min, 'gal_sigma', 'psf_sigma')
+
+
+        return # TODO REMOVE THIS ONCE WE CAN MOVE ON TO OTHER SHEAR ESTIMATORS
+
+        # PLOTTING LINEAR
+        LINEAR_criterion = filtered_by_cshear['shear_estimator'].map(lambda alg: alg == 'LINEAR')
+        LINEAR_only = filtered_by_cshear[LINEAR_criterion]
+        LINEAR_only_final = LINEAR_only.reset_index(drop=True)
+ 
+        plot_different_ellipticities_m(LINEAR_only_final, color_column='gal_psf_ratio', plotname=LINEAR_filename) 
+
+        # PLOTTING BJ
+        BJ_criterion = filtered_by_cshear['shear_estimator'].map(lambda alg: alg == 'BJ')
+        BJ_only = filtered_by_cshear[BJ_criterion]
+        BJ_only_final = BJ_only.reset_index(drop=True)
+
+        plot_different_ellipticities_m(BJ_only_final, color_column='gal_psf_ratio', plotname=BJ_filename)
+        
+        return
+
+    else:
+        shear_est_criterion = filtered['shear_estimator'].map(lambda alg: alg == shear_est)
+        filtered = filtered[shear_est_criterion]
+
 
     filtered_final = filtered_by_cshear.reset_index(drop=True)
-    # print(filtered['reconvolved_noshear_e1'])
+
+    print(f"Filtered size: {filtered_final.shape}")
 
     # all_gaussian_different_ellipticies_log_m(filtered, filename)
-    all_gaussian_different_ellipticities_m(filtered_final, color_column='gal_psf_ratio', plotname=filename) # change back to filtered if needed
+    plot_different_ellipticities_m(filtered_final, color_column='gal_psf_ratio', plotname=filename) # change back to filtered if needed
+
+
+def moffat_all_shape_measures(dataframe, pixel_scale=0.2, cshear_dg=0.01, by_ratio=False, by_size=False, shear_est='all', filename=None):
+    """
+    INCOMPLETE
+    """
+    print(dataframe.columns)
+    print(f"Intial size: {dataframe.shape}")
+
+    # creating columns
+    dataframe['gal_fwhm'] = [gal.fwhm for gal in dataframe['original_gal']]
+    dataframe['psf_fwhm'] = [psf.fwhm for psf in dataframe['true_psf']]
+    dataframe['gal_psf_ratio'] = dataframe['gal_fwhm'] / dataframe['psf_fwhm']
+  
+    # begin filtering
+
+    filtered = dataframe
+    
+
+    # filter by galaxy to psf size ratio
+    if by_ratio:
+        ratio_criterion = filtered['gal_psf_ratio'].map(lambda ratio: abs(ratio - 2.0) < 0.001)
+        filtered = filtered[ratio_criterion]
+
+    # filter by absolute galaxy size
+    if by_size:
+        size_criterion = filtered['gal_sigma'].map(lambda sigma: abs(sigma - 1.019108) < 0.00001)
+        filtered = filtered[size_criterion]
+
+    # filter by pixel_scale
+    # filtered_by_pixel = filtered[filtered['pixel_scale'] == pixel_scale]
+    pixel_criterion = filtered['pixel_scale'].map(lambda scale: scale == pixel_scale)
+    filtered_by_pixel = filtered[pixel_criterion]
+
+
+    # filter by cshear_dg
+    criterion1 = filtered_by_pixel['cshear_dg1'].map(lambda x: x == cshear_dg or x == 0.0)
+    criterion2 = filtered_by_pixel['cshear_dg2'].map(lambda x: x == cshear_dg or x == 0.0)
+
+    filtered_by_cshear = filtered_by_pixel[criterion1]
+    filtered_by_cshear = filtered_by_pixel[criterion2]
+
+
+
+    # filter by shear_estimator
+    if shear_est == 'all':
+       
+        if filename is not None:
+
+            filename = f"{filename}_scale={pixel_scale}_cshear_dg={cshear_dg}"
+            REGAUSS_filename = filename + '_REGAUSS'
+            LINEAR_filename = filename + '_LINEAR'
+            BJ_filename = filename + '_BJ'
+
+        else:
+            REGAUSS_filename = None
+            LINEAR_filename = None
+            BJ_filename = None
+ 
+        # PLOTTING REGAUSS
+        REGAUSS_criterion = filtered_by_cshear['shear_estimator'].map(lambda alg: alg == 'REGAUSS')
+        REGAUSS_only = filtered_by_cshear[REGAUSS_criterion]
+        REGAUSS_min, REGAUSS_max = max_min_table(REGAUSS_only, 'gal_psf_ratio')
+
+        plot_different_ellipticities_m(REGAUSS_min, color_column='gal_psf_ratio', plotname=REGAUSS_filename + '_min') 
+        plot_different_ellipticities_m(REGAUSS_max, color_column='gal_psf_ratio', plotname=REGAUSS_filename + '_max') 
+        
+        return #TODO remove this once ready to move on
+
+        # PLOTTING LINEAR
+        LINEAR_criterion = filtered_by_cshear['shear_estimator'].map(lambda alg: alg == 'LINEAR')
+        LINEAR_only = filtered_by_cshear[LINEAR_criterion]
+        LINEAR_only_final = LINEAR_only.reset_index(drop=True)
+ 
+        plot_different_ellipticities_m(LINEAR_only_final, color_column='gal_psf_ratio', plotname=LINEAR_filename) 
+
+        # PLOTTING BJ
+        BJ_criterion = filtered_by_cshear['shear_estimator'].map(lambda alg: alg == 'BJ')
+        BJ_only = filtered_by_cshear[BJ_criterion]
+        BJ_only_final = BJ_only.reset_index(drop=True)
+
+        plot_different_ellipticities_m(BJ_only_final, color_column='gal_psf_ratio', plotname=BJ_filename)
+        
+        return
+
+    else:
+        shear_est_criterion = filtered['shear_estimator'].map(lambda alg: alg == shear_est)
+        filtered = filtered[shear_est_criterion]
+
+
+    filtered_final = filtered_by_cshear.reset_index(drop=True)
+
+    print(f"Filtered size: {filtered_final.shape}")
+
+    # all_gaussian_different_ellipticies_log_m(filtered, filename)
+    plot_different_ellipticities_m(filtered_final, color_column='gal_psf_ratio', plotname=filename) # change back to filtered if needed
 
 
 def generate_images(dataframe):
@@ -557,7 +744,7 @@ def generate_images(dataframe):
 
 
 # MASTER FUNCTIONS
-def master_plotting(dataframe, filename):
+def master_plotting(dataframe, plotname):
     """
     Calls whichever plotting function isn't commented out
     """
@@ -572,10 +759,11 @@ def master_plotting(dataframe, filename):
     # generate_images(dataframe)
     # all_gaussian_different_ellipticies_log_m(dataframe, filename)
     # all_gaussian_varying_cshear_oshear_pixelscale(dataframe, 'test')
-    # all_gaussian_different_ellipticities_m(dataframe, plotname=filename) 
+    # plot_different_ellipticities_m(dataframe, plotname=filename) 
     # all_gaussian_varying_cshear_oshear_pixelscale(dataframe, filename=None, pixel_scale=0.2, cshear_dg=0.01)
     # all_moffat_different_ellipticities_m(dataframe)
-    gaussian_all_shape_measures(dataframe, pixel_scale=0.2, cshear_dg=0.01, by_size=False, shear_est='REGAUSS', filename=None)
+    gaussian_all_shape_measures(dataframe, pixel_scale=0.02, cshear_dg=0.01, by_ratio=False, by_size=False, shear_est='all', filename='gaussian_EXAGGERATED_RATIOS_fixcolor')
+    # moffat_all_shape_measures(dataframe, pixel_scale=0.02, cshear_dg=0.01, by_ratio=False, by_size=False, shear_est='all', filename='moffat_PSFs')
 
 
 def pickle_to_modified_dataframe(filename):
