@@ -2,6 +2,7 @@
 Goal: Create a framework to refactor the three scripts to make things easier
 """
 
+from scripts.Metacalibration.metacal import generate_observed_galaxy
 import numpy as np
 import galsim
 import pandas as pd
@@ -304,6 +305,9 @@ class comboObject:
                                                 # don't forget beta
                                                 true_psf = galsim.Moffat(flux=1.0, fwhm=true_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
                                             
+                                            else:
+                                                raise Exception('Invalid PSF profile!')
+                                            
                                             # making psf wrong
                                             deconv_psf = self.make_wrong(true_psf)
 
@@ -350,3 +354,183 @@ class comboObject:
         filename = self.__pickle_dont_overwrite__(results, storage_file)
         
         print(f"Results stored to {filename}")
+
+
+
+
+class metacalObject:
+
+    def __init__(self, original_gal, oshear_g1, oshear_g2, true_psf,
+                        deconv_psf, reconv_psf, shear_estimation_psf,
+                        cshear_dg1, cshear_dg2, shear_estimator, pixel_scale):
+
+        self.original_gal = original_gal
+        self.oshear_g1 = oshear_g1
+        self.oshear_g2 = oshear_g2
+        self.true_psf = true_psf
+        self.deconv_psf = deconv_psf
+        self.reconv_psf = reconv_psf
+        self.shear_estimation_psf = shear_estimation_psf
+        self.cshear_dg1 = cshear_dg1
+        self.cshear_dg2 = cshear_dg2
+        self.shear_estimator = shear_estimator
+        self.pixel_scale = pixel_scale
+
+
+    def __generate_observed_galaxy__(self):
+        """
+        Returns:
+
+            observed:      galsim object   The galaxy as would be seen through a telescope with no corrections
+                                        (cosmic shear applied, PSF applied)
+
+        """
+        # shearing the original galaxy
+        sheared = self.original_gal.shear(g1=self.oshear_g1, g2=self.oshear_g2)
+
+        # Convolving the sheared galaxy with the PSF
+        observed = galsim.Convolve(sheared, self.true_psf)
+
+        self._observed_gal = observed
+
+
+    def __delta_shear__(self):
+        """
+        Takes in an observed galaxy object, two PSFs for metacal (deconvolving
+        and re-convolving), and the amount by which to shift g1 and g2, and returns
+        a tuple of tuples of modified galaxy objects.
+        ((g1plus, g1minus), (g2plus, g2minus))
+
+        Parameters:
+
+            observed_gal:   galsim object   The observed galaxy (cosmic shear and true_psf already applied)
+
+            psf_deconvolve: galsim object   The PSF chosen for deconvolution in metacal (\Gamma 2)
+
+            psf_reconvolve: galsim object   The reconvolution PSF (\Gamma 3) 
+
+            delta_g1:       float           Calibration shear g1
+
+            delta_g2:       float           Calibration shear g2
+
+
+        Returns:
+
+            g1_plus_minus:          tuple of galsim objects     (sheared with +dg1, sheared with -dg1)
+            
+            g2_plus_minus:          tuple of galsim objects     (sheared with +dg2, sheared with -dg2)
+
+            reconvolved_noshear:    galsim_object               (unsheared, for accuracy tests) 
+
+        """
+        # Deconvolving by psf_deconvolve
+        inv_psf = galsim.Deconvolve(self.deconv_psf)
+        self._deconvolved = galsim.Convolve(self._observed_gal, inv_psf)
+
+        # Applying second shear in g1
+        self._sheared_plus_g1 = self._deconvolved.shear(g1=self.cshear_dg1, g2=0)
+        self._sheared_minus_g1 = self._deconvolved.shear(g1= -self.cshear_dg1, g2=0)
+
+        # Applying second shear in g2
+        self._sheared_plus_g2 = self._deconvolved.shear(g1=0, g2=self.cshear_dg2)
+        self._sheared_minus_g2 = self._deconvolved.shear(g1=0, g2= -self.cshear_dg2)
+
+        # Reconvolving by psf_reconvolve for g1
+        self._reconvolved_plus_g1 = galsim.Convolve(self._sheared_plus_g1, self.reconv_psf)
+        self._reconvolved_minus_g1 = galsim.Convolve(self._sheared_minus_g1, self.reconv_psf)
+
+        # Reconvolving by psf_reconvolve for g2
+        self._reconvolved_plus_g2 = galsim.Convolve(self._sheared_plus_g2, self.reconv_psf)
+        self._reconvolved_minus_g2 = galsim.Convolve(self._sheared_minus_g2, self.reconv_psf)
+
+        self._reconvolved_noshear = galsim.Convolve(self._deconvolved, self.reconv_psf)
+
+
+    def __shear_response__(self): 
+
+        """
+        Returns:
+
+            R:              2D numpy array      The calculated shear response matrix 
+
+            noshear_e1:     float               The measured shape (distortion, first component) of the galaxy to which no calibration shear was applied
+
+            noshear_e2:     float               The measured shape (distortion, second component) of the galaxy to which no calibration shear was applied
+
+        """
+
+        plus_g1_gal = g1_plus_minus[0]
+        minus_g1_gal = g1_plus_minus[1]
+        plus_g2_gal = g2_plus_minus[0]
+        minus_g2_gal = g2_plus_minus[1]
+
+        # Measuring galaxy shape parameters
+        # We want to measure the shapes of reconvolved_plus_galaxy and reconvolved_minus_galaxy
+        # the documentation recommends that we use the method='no_pixel' on the images
+
+        plus_g1 = self._reconvolved_plus_g1.drawImage(scale=self.pixel_scale, method='no_pixel')
+        minus_g1 = self._reconvolved_minus_g1.drawImage(scale=self.pixel_scale, method='no_pixel')
+
+        plus_g2 = self._reconvolved_plus_g2.drawImage(scale=self.pixel_scale, method='no_pixel')
+        minus_g2 = self._reconvolved_minus_g2.drawImage(scale=self.pixel_scale, method='no_pixel')
+
+        psf_shearestimator_image = self.shear_estimation_psf.drawImage(scale=self.pixel_scale)
+
+        plus_moments_g1 = galsim.hsm.EstimateShear(plus_g1, psf_shearestimator_image, shear_est=self.shear_estimator)
+        minus_moments_g1 = galsim.hsm.EstimateShear(minus_g1, psf_shearestimator_image, shear_est=self.shear_estimator)
+        plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
+        minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
+
+
+        e1_plus_g1 = plus_moments_g1.corrected_e1
+        e2_plus_g1 = plus_moments_g1.corrected_e2
+
+        e1_minus_g1 = minus_moments_g1.corrected_e1
+        e2_minus_g1 = minus_moments_g1.corrected_e2
+
+        e1_plus_g2 = plus_moments_g2.corrected_e1
+        e2_plus_g2 = plus_moments_g2.corrected_e2
+
+        e1_minus_g2 = minus_moments_g2.corrected_e1
+        e2_minus_g2 = minus_moments_g2.corrected_e2
+
+        # calculating the shear response matrix R
+        R_11 = (e1_plus_g1 - e1_minus_g1) / (2 * self.cshear_dg1)
+        R_12 = (e2_plus_g1 - e2_minus_g1) / (2 * self.cshear_dg1)
+        R_21 = (e1_plus_g2 - e1_minus_g2) / (2 * self.cshear_dg2)
+        R_22 = (e2_plus_g2 - e2_minus_g2) / (2 * self.cshear_dg2)
+
+        R = np.array([[R_11, R_12],[R_21, R_22]])
+
+        # Calculating shape of reconvolved_no_shear to test accuracy of shear response
+        noshear_image = self._reconvolved_noshear.drawImage(scale=self.pixel_scale, method='no_pixel')
+        noshear_moments = galsim.hsm.EstimateShear(noshear_image, psf_shearestimator_image, shear_est=self.shear_estimator)
+        noshear_e1 = noshear_moments.corrected_e1
+        noshear_e2 = noshear_moments.corrected_e2
+
+        self.R = R
+        self.noshear_e1 = noshear_e1
+        self.noshear_e2 = noshear_e2 
+
+    def metacalibration(self):
+        self.__generate_observed_galaxy__()
+        self.__delta_shear__()
+        self.__shear_response__()
+
+        return self
+
+        return (self.original_gal,
+                self.oshear_g1,
+                self.oshear_g2,
+                self.true_psf,
+                self.deconv_psf,
+                self.reconv_psf,
+                self.shear_estimation_psf,
+                self.cshear_dg1,
+                self.cshear_dg2,
+                self.shear_estimator,
+                self.pixel_scale,
+                self.R,
+                self._reconvolved_noshear,
+                self.noshear_e1,
+                self.noshear_e2)
