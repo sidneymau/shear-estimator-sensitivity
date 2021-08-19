@@ -2,6 +2,7 @@
 Goal: Create a framework to refactor the three scripts to make things easier
 """
 
+from re import I
 import numpy as np
 import galsim
 import pandas as pd
@@ -9,7 +10,7 @@ import pickle
 import matplotlib.pyplot as plt
 import os
 import sys
-import metacal
+# import metacal
 from multiprocessing import Pool
 
 class mcSummaryObject:
@@ -29,21 +30,21 @@ class mcSummaryObject:
         plt.rcParams.update({'font.size': self.fontsize})
 
         self.pickle_file = pickle_file
-        self._results_array  = self.__unpickle__()
-        self.__generate_df__()
+        self._results_array  = self._unpickle()
+        self._generate_df()
         self.dropNan() # TODO put somewhere else?
-        self.__element_columns__()
-        self.__add_size_ratio__()
+        self._element_columns()
+        self._add_size_ratio()
         self.original_df = self.df
 
 
-    def __unpickle__(self):
+    def _unpickle(self):
         with open(self.pickle_file, 'rb') as f:
             results_array =  pickle.load(f)
             return results_array
 
 
-    def __element_columns__(self):
+    def _element_columns(self):
         """
         Adds as columns the 4 individual elements of the shear response matrix
 
@@ -61,7 +62,7 @@ class mcSummaryObject:
                 self.df['R_' + str(i + 1) + str(j + 1)] = list(map(lambda r: r[i][j], self.df['R']))
 
 
-    def __add_size_ratio__(self):
+    def _add_size_ratio(self):
 
         # USE FWHM FOR BOTH
         self.df['gal_fwhm'] = [gal.fwhm for gal in self.df['original_gal']]
@@ -69,11 +70,24 @@ class mcSummaryObject:
         self.df['gal_psf_ratio'] = self.df['gal_fwhm'] / self.df['psf_fwhm']
         
 
-    def __generate_df__(self):
+    def _generate_df(self):
+
+        def expand_object(mcObject):
+            return (mcObject, mcObject.original_gal, mcObject.oshear_g1, mcObject.oshear_g2,
+                    mcObject.true_psf, mcObject.deconv_psf, mcObject.reconv_psf, mcObject.shear_estimation_psf,
+                    mcObject.cshear_dg1, mcObject.cshear_dg2, mcObject.shear_estimator,
+                    mcObject.pixel_scale, mcObject.R, mcObject.reconvolved_noshear,
+                    mcObject.noshear_e1, mcObject.noshear_e2)
+
+        # make a dataframe-shaped list from the results_array
+
+        dfshape_array = [expand_object(obj) for obj in self._results_array]
+
 
         # Loading the results table into a Pandas DataFrame
-        column_names = ['original_gal', 'oshear_g1', 'oshear_g2', 'true_psf', 'deconv_psf', 'reconv_psf', 'shear_estimation_psf', 'cshear_dg1', 'cshear_dg2', 'shear_estimator', 'pixel_scale', 'R', 'reconvolved_noshear', 'reconvolved_noshear_e1', 'reconvolved_noshear_e2']
-        self.df = pd.DataFrame(self._results_array, columns=column_names)
+        column_names = ['mcObject', 'original_gal', 'oshear_g1', 'oshear_g2', 'true_psf', 'deconv_psf', 'reconv_psf', 'shear_estimation_psf', 'cshear_dg1', 'cshear_dg2', 'shear_estimator', 'pixel_scale', 'R', 'reconvolved_noshear', 'reconvolved_noshear_e1', 'reconvolved_noshear_e2']
+        # self.df = pd.DataFrame(self._results_array, columns=column_names)
+        self.df = pd.DataFrame(dfshape_array, columns=column_names)
 
 
 
@@ -486,12 +500,15 @@ class mcSummaryObject:
         print(m1, m2)
 
 
-        original_gal = row_dict['original_gal']
-        true_psf = row_dict['true_psf']
-        pixel_scale = row_dict['pixel_scale']
+        # original_gal = row_dict['original_gal']
+        # true_psf = row_dict['true_psf']
+        # pixel_scale = row_dict['pixel_scale']
 
-        original_gal_image = original_gal.drawImage(scale=pixel_scale)
-        true_psf_image = true_psf.drawImage(scale=pixel_scale)
+        # original_gal_image = original_gal.drawImage(scale=pixel_scale)
+        # true_psf_image = true_psf.drawImage(scale=pixel_scale)
+
+        mcObject = row_dict['mcObject']
+
 
         fig, axs = plt.subplots(1, 2, figsize = (10, 5))
 
@@ -524,7 +541,7 @@ class comboObject:
         self.cshear_dgs = [0.01]
         self.true_psf_fwhms = np.arange(0.5, 1.3, 0.1)
         self.gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
-        self.offset = None
+        self.offsets = [None]
 
 
     def print_parameters(self):
@@ -538,7 +555,7 @@ class comboObject:
         print(f"Calibration shear magnitudes: {self.cshear_dgs}")
         print(f"True PSF fwhms: {self.true_psf_fwhms}")
         print(f"Gal/PSF ratios: {self.gal_psf_ratios}")
-        print(f"Offset: {self.offset}")
+        print(f"Offsets: {self.offsets}")
         print(20 * '-' + '\n')
 
 
@@ -549,7 +566,7 @@ class comboObject:
         return true_psf
 
 
-    def __create_combinations__(self):
+    def _create_combinations(self):
         """
         all things we could possibly want to iterate over
 
@@ -611,7 +628,7 @@ class comboObject:
         return combinations 
 
 
-    def __create_object_list__(self):
+    def _create_object_list(self):
         """
         all things we could possibly want to iterate over
 
@@ -633,47 +650,48 @@ class comboObject:
                         for gal_flux in self.gal_fluxes:
                             for oshear_dg in self.oshear_dgs:
                                 for cshear_dg in self.cshear_dgs:
-                                    for gal_psf_ratio in self.gal_psf_ratios:
-                                        for true_psf_fwhm in self.true_psf_fwhms:
+                                    for offset in self.offsets:
+                                        for gal_psf_ratio in self.gal_psf_ratios:
+                                            for true_psf_fwhm in self.true_psf_fwhms:
 
-                                        
-                                            dilation_factor = 1 / (1 - 2 * cshear_dg)
-
-                                            if gal_profile == 'gaussian':
-                                                original_gal = galsim.Gaussian(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm)
-
-                                            elif gal_profile == 'moffat':
-                                                # don't forget beta
-                                                original_gal = galsim.Moffat(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm, beta=self.gal_profiles[gal_profile])
                                             
-                                            else:
-                                                raise Exception('Invalid galaxy profile!')
-                                            
+                                                dilation_factor = 1 / (1 - 2 * cshear_dg)
 
-                                            if true_psf_profile == 'gaussian':
-                                                true_psf = galsim.Gaussian(flux=1.0, fwhm=true_psf_fwhm)
-            
-                                            
-                                            elif true_psf_profile == 'moffat':
-                                                # don't forget beta
-                                                true_psf = galsim.Moffat(flux=1.0, fwhm=true_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
-                                            
-                                            else:
-                                                raise Exception('Invalid PSF profile!')
-                                            
-                                            # making psf wrong
-                                            deconv_psf = self.make_wrong(true_psf)
+                                                if gal_profile == 'gaussian':
+                                                    original_gal = galsim.Gaussian(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm)
 
-                                            # dilating reconv_psf
-                                            reconv_psf = deconv_psf.dilate(dilation_factor)
+                                                elif gal_profile == 'moffat':
+                                                    # don't forget beta
+                                                    original_gal = galsim.Moffat(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm, beta=self.gal_profiles[gal_profile])
+                                                
+                                                else:
+                                                    raise Exception('Invalid galaxy profile!')
+                                                
 
-                                            combinations.append(metacalObject(original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale))
-                                            combinations.append(metacalObject(original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale))
+                                                if true_psf_profile == 'gaussian':
+                                                    true_psf = galsim.Gaussian(flux=1.0, fwhm=true_psf_fwhm)
+                
+                                                
+                                                elif true_psf_profile == 'moffat':
+                                                    # don't forget beta
+                                                    true_psf = galsim.Moffat(flux=1.0, fwhm=true_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
+                                                
+                                                else:
+                                                    raise Exception('Invalid PSF profile!')
+                                                
+                                                # making psf wrong
+                                                deconv_psf = self.make_wrong(true_psf)
+
+                                                # dilating reconv_psf
+                                                reconv_psf = deconv_psf.dilate(dilation_factor)
+
+                                                combinations.append(metacalObject(original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, offset))
+                                                combinations.append(metacalObject(original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, offset))
 
         return combinations 
 
 
-    def __pickle_dont_overwrite__(self, results, storage_file):
+    def _pickle_dont_overwrite(self, results, storage_file):
 
         name = storage_file
 
@@ -697,30 +715,29 @@ class comboObject:
             return f"{self.folder}/{storage_file}({version}).pickle"
 
 
-    def __apply_metacalibration_lambda__(self, object):
+    def _apply_metacalibration_lambda(self, object):
         new = object.metacalibration()
+        print(object.R)
         return new
         
     def generate_combinations(self, storage_file, num_workers):
 
-        combinations = self.__create_object_list__()
+        combinations = self._create_object_list()
         
 
         with Pool(num_workers) as p:
-            results = p.map(self.__apply_metacalibration_lambda__, combinations)
+            results = p.map(self._apply_metacalibration_lambda, combinations)
 
-        filename = self.__pickle_dont_overwrite__(results, storage_file)
+        filename = self._pickle_dont_overwrite(results, storage_file)
         
         print(f"Results stored to {filename}")
-
-
 
 
 class metacalObject:
 
     def __init__(self, original_gal, oshear_g1, oshear_g2, true_psf,
                         deconv_psf, reconv_psf, shear_estimation_psf,
-                        cshear_dg1, cshear_dg2, shear_estimator, pixel_scale):
+                        cshear_dg1, cshear_dg2, shear_estimator, pixel_scale, offset):
 
         self.original_gal = original_gal
         self.oshear_g1 = oshear_g1
@@ -733,9 +750,10 @@ class metacalObject:
         self.cshear_dg2 = cshear_dg2
         self.shear_estimator = shear_estimator
         self.pixel_scale = pixel_scale
+        self.offset = offset
 
 
-    def __generate_observed_galaxy__(self):
+    def _generate_observed_galaxy(self):
         """
         Returns:
 
@@ -752,7 +770,7 @@ class metacalObject:
         self._observed_gal = observed
 
 
-    def __delta_shear__(self):
+    def _delta_shear(self):
         """
         Takes in an observed galaxy object, two PSFs for metacal (deconvolving
         and re-convolving), and the amount by which to shift g1 and g2, and returns
@@ -804,7 +822,7 @@ class metacalObject:
         self.reconvolved_noshear = galsim.Convolve(self._deconvolved, self.reconv_psf)
 
 
-    def __shear_response__(self): 
+    def _shear_response(self): 
 
         """
         Returns:
@@ -821,18 +839,26 @@ class metacalObject:
         # We want to measure the shapes of reconvolved_plus_galaxy and reconvolved_minus_galaxy
         # the documentation recommends that we use the method='no_pixel' on the images
 
-        plus_g1 = self._reconvolved_plus_g1.drawImage(scale=self.pixel_scale, method='no_pixel')
-        minus_g1 = self._reconvolved_minus_g1.drawImage(scale=self.pixel_scale, method='no_pixel')
+        plus_g1 = self._reconvolved_plus_g1.drawImage(scale=self.pixel_scale, method='no_pixel', offset=self.offset)
+        minus_g1 = self._reconvolved_minus_g1.drawImage(scale=self.pixel_scale, method='no_pixel', offset=self.offset)
 
-        plus_g2 = self._reconvolved_plus_g2.drawImage(scale=self.pixel_scale, method='no_pixel')
-        minus_g2 = self._reconvolved_minus_g2.drawImage(scale=self.pixel_scale, method='no_pixel')
+        plus_g2 = self._reconvolved_plus_g2.drawImage(scale=self.pixel_scale, method='no_pixel', offset=self.offset)
+        minus_g2 = self._reconvolved_minus_g2.drawImage(scale=self.pixel_scale, method='no_pixel', offset=self.offset)
 
-        psf_shearestimator_image = self.shear_estimation_psf.drawImage(scale=self.pixel_scale)
+        noshear_image = self.reconvolved_noshear.drawImage(scale=self.pixel_scale, method='no_pixel', offset=self.offset)
 
-        plus_moments_g1 = galsim.hsm.EstimateShear(plus_g1, psf_shearestimator_image, shear_est=self.shear_estimator)
-        minus_moments_g1 = galsim.hsm.EstimateShear(minus_g1, psf_shearestimator_image, shear_est=self.shear_estimator)
-        plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
-        minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
+        psf_shearestimator_image = self.shear_estimation_psf.drawImage(scale=self.pixel_scale, offset=self.offset)
+
+        try:
+            plus_moments_g1 = galsim.hsm.EstimateShear(plus_g1, psf_shearestimator_image, shear_est=self.shear_estimator)
+            minus_moments_g1 = galsim.hsm.EstimateShear(minus_g1, psf_shearestimator_image, shear_est=self.shear_estimator)
+            plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
+            minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
+            noshear_moments = galsim.hsm.EstimateShear(noshear_image, psf_shearestimator_image, shear_est=self.shear_estimator)
+
+        except galsim.GalSimError:
+            print('EstimateShear failed')
+            return np.nan, np.nan, np.nan
 
 
         e1_plus_g1 = plus_moments_g1.corrected_e1
@@ -847,6 +873,10 @@ class metacalObject:
         e1_minus_g2 = minus_moments_g2.corrected_e1
         e2_minus_g2 = minus_moments_g2.corrected_e2
 
+        # Calculating shape of reconvolved_no_shear to test accuracy of shear response
+        noshear_e1 = noshear_moments.corrected_e1
+        noshear_e2 = noshear_moments.corrected_e2
+
         # calculating the shear response matrix R
         R_11 = (e1_plus_g1 - e1_minus_g1) / (2 * self.cshear_dg1)
         R_12 = (e2_plus_g1 - e2_minus_g1) / (2 * self.cshear_dg1)
@@ -855,20 +885,16 @@ class metacalObject:
 
         R = np.array([[R_11, R_12],[R_21, R_22]])
 
-        # Calculating shape of reconvolved_no_shear to test accuracy of shear response
-        noshear_image = self.reconvolved_noshear.drawImage(scale=self.pixel_scale, method='no_pixel')
-        noshear_moments = galsim.hsm.EstimateShear(noshear_image, psf_shearestimator_image, shear_est=self.shear_estimator)
-        noshear_e1 = noshear_moments.corrected_e1
-        noshear_e2 = noshear_moments.corrected_e2
 
         self.R = R
         self.noshear_e1 = noshear_e1
         self.noshear_e2 = noshear_e2 
 
+
     def metacalibration(self):
-        self.__generate_observed_galaxy__()
-        self.__delta_shear__()
-        self.__shear_response__()
+        self._generate_observed_galaxy()
+        self._delta_shear()
+        self._shear_response()
 
         return self
         return (self,
@@ -887,3 +913,34 @@ class metacalObject:
                 self.reconvolved_noshear,
                 self.noshear_e1,
                 self.noshear_e2)
+
+
+
+    def show_images(self, height, fontsize=20):
+        
+        number = 5
+        width = height * number
+
+
+        original_gal_image = self.original_gal.drawImage(scale=self.pixel_scale, offset=self.offset)
+        true_psf_image = self.true_psf.drawImage(scale=self.pixel_scale, offset=self.offset)
+        observed_gal_image = self._observed_gal.drawImage(scale=self.pixel_scale, offset=self.offset)
+        deconvolved_image = self._deconvolved.drawImage(scale=self.pixel_scale, offset=self.offset)
+        reconvolved_noshear_image = self.reconvolved_noshear.drawImage(scale=self.pixel_scale, offset=self.offset)
+        
+        fig, axs = plt.subplots(1, number, figsize=(width, height))
+
+        axs[0].imshow(original_gal_image.array)
+        axs[1].imshow(true_psf_image.array, cmap='plasma')
+        axs[2].imshow(observed_gal_image.array)
+        axs[3].imshow(deconvolved_image.array)
+        axs[4].imshow(reconvolved_noshear_image.array)
+        
+        title_dict = {0: 'Original Galaxy', 1: 'True PSF', 2: 'Observed Galaxy', 3: 'Deconvolved Galaxy', 4: 'Reconvolved (no shear)'}
+
+        for i in range(number):
+            axs[i].set_title(title_dict[i], fontsize=fontsize)
+            axs[i].set_xlabel('x', fontsize=fontsize)
+            axs[i].set_ylabel('y', fontsize=fontsize) 
+
+        plt.show()
