@@ -103,7 +103,7 @@ def delta_shear(observed_gal, psf_deconvolve, psf_reconvolve, delta_g1, delta_g2
 	return g1_plus_minus, g2_plus_minus, reconvolved_noshear
 
 
-def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale): 
+def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale, offset=None): 
 	"""
 	Takes in the a tuple of the g1 plus/minus objects and
 	a tuple of the g2 plus/minus objects and returns the
@@ -147,13 +147,13 @@ def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_del
 	# We want to measure the shapes of reconvolved_plus_galaxy and reconvolved_minus_galaxy
 	# the documentation recommends that we use the method='no_pixel' on the images
 
-	plus_g1 = plus_g1_gal.drawImage(scale=pixel_scale, method='no_pixel')
-	minus_g1 = minus_g1_gal.drawImage(scale=pixel_scale, method='no_pixel')
+	plus_g1 = plus_g1_gal.drawImage(scale=pixel_scale, method='no_pixel', offset=offset)
+	minus_g1 = minus_g1_gal.drawImage(scale=pixel_scale, method='no_pixel', offset=offset)
 
-	plus_g2 = plus_g2_gal.drawImage(scale=pixel_scale, method='no_pixel')
-	minus_g2 = minus_g2_gal.drawImage(scale=pixel_scale, method='no_pixel')
+	plus_g2 = plus_g2_gal.drawImage(scale=pixel_scale, method='no_pixel', offset=offset)
+	minus_g2 = minus_g2_gal.drawImage(scale=pixel_scale, method='no_pixel', offset=offset)
 
-	psf_shearestimator_image = psf_shearestimator.drawImage(scale=pixel_scale)
+	psf_shearestimator_image = psf_shearestimator.drawImage(scale=pixel_scale, offset=offset)
 
 	plus_moments_g1 = galsim.hsm.EstimateShear(plus_g1, psf_shearestimator_image, shear_est=shearestimator)
 	minus_moments_g1 = galsim.hsm.EstimateShear(minus_g1, psf_shearestimator_image, shear_est=shearestimator)
@@ -182,14 +182,14 @@ def shear_response(g1_plus_minus, g2_plus_minus, reconvolved_noshear, cshear_del
 	R = np.array([[R_11, R_12],[R_21, R_22]])
 
 	# Calculating shape of reconvolved_no_shear to test accuracy of shear response
-	noshear_image = reconvolved_noshear.drawImage(scale=pixel_scale, method='no_pixel')
+	noshear_image = reconvolved_noshear.drawImage(scale=pixel_scale, method='no_pixel', offset=offset)
 	noshear_moments = galsim.hsm.EstimateShear(noshear_image, psf_shearestimator_image, shear_est=shearestimator)
 	noshear_e1 = noshear_moments.corrected_e1
 	noshear_e2 = noshear_moments.corrected_e2
 
 	return R, noshear_e1, noshear_e2
 
-def metacalibration(original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, psf_deconvolve, psf_reconvolve, psf_shearestimator, cshear_delta_g1, cshear_delta_g2, shearestimator, pixel_scale):
+def metacalibration(original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, psf_deconvolve, psf_reconvolve, psf_shearestimator, cshear_delta_g1, cshear_delta_g2, shearestimator, pixel_scale, offset):
 	"""
 	Takes in an observed galaxy profile, the deconvolution and reconvolution PSFs,
 	and the amounts by which to vary g1 and g2, then performs metacalibration based
@@ -229,7 +229,7 @@ def metacalibration(original_gal, oshear_delta_g1, oshear_delta_g2, true_psf, ps
 	observed_galaxy_profile = generate_observed_galaxy(original_gal, true_psf, oshear_delta_g1, oshear_delta_g2)
 
 	g1pm, g2pm, reconvolved_noshear = delta_shear(observed_galaxy_profile, psf_deconvolve, psf_reconvolve, cshear_delta_g1, cshear_delta_g2)
-	R, noshear_e1, noshear_e2 = shear_response(g1pm, g2pm, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale)
+	R, noshear_e1, noshear_e2 = shear_response(g1pm, g2pm, reconvolved_noshear, cshear_delta_g1, cshear_delta_g2, psf_shearestimator, shearestimator, pixel_scale, offset)
 
 	# helps to see that things are running
 	print(R)
