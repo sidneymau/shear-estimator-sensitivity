@@ -23,7 +23,7 @@ class mcSummaryObject:
 
     # Initialization Methods
 
-    def __init__(self, pickle_file):
+    def __init__(self, pickle_file, dropNan=True):
         
         self.folder = 'plots/'
         self.fontsize = 10
@@ -32,8 +32,11 @@ class mcSummaryObject:
         self.pickle_file = pickle_file
         self._results_array  = self._unpickle()
         self._generate_df()
-        self.dropNan() # TODO put somewhere else?
-        self._element_columns()
+        
+        if dropNan:
+            self.dropNan() # TODO put somewhere else?
+            self._element_columns()
+
         self._add_size_ratio()
         self.original_df = self.df
 
@@ -66,8 +69,10 @@ class mcSummaryObject:
 
         # USE FWHM FOR BOTH
         self.df['gal_fwhm'] = [gal.fwhm for gal in self.df['original_gal']]
-        self.df['psf_fwhm'] = [psf.fwhm for psf in self.df['true_psf']]
-        self.df['gal_psf_ratio'] = self.df['gal_fwhm'] / self.df['psf_fwhm']
+        self.df['true_psf_fwhm'] = [psf.fwhm for psf in self.df['true_psf']]
+        self.df['gal_psf_ratio'] = self.df['gal_fwhm'] / self.df['true_psf_fwhm']
+
+        self.df['deconv_psf_fwhm'] = [obj.deconv_psf.fwhm for obj in self.df['mcObject']]
         
 
     def _generate_df(self):
@@ -99,7 +104,7 @@ class mcSummaryObject:
         self.df = self.df.reset_index(drop=True)
 
 
-    def slice(self, by, boolean_criterion):
+    def slice(self, by, boolean_criterion, void=True):
         """
         by : what column to slice by
         values: the values of the column to keep
@@ -110,7 +115,11 @@ class mcSummaryObject:
         criterion = sliced_df[by].map(boolean_criterion)
         sliced_df = sliced_df[criterion]
 
-        self.df = sliced_df.reset_index(drop=True)
+        if void:
+            self.df = sliced_df.reset_index(drop=True)
+            
+        else:
+            return sliced_df
     
 
     def slice_min_or_max(self, column, choice):
@@ -204,7 +213,7 @@ class mcSummaryObject:
         return estimated_g1, estimated_g2, estimated_g1_NO_METACAL, estimated_g2_NO_METACAL
 
 
-    def plot_quadratic_m(self, color_column=None, plotname=None, blind=False):
+    def plot_quadratic_m(self, color_column=None, plotname=None, blind=False, show=True):
 
         true_g1 = self.df['oshear_g1'].to_numpy()
         true_g2 = self.df['oshear_g2'].to_numpy()
@@ -256,9 +265,16 @@ class mcSummaryObject:
         idx1 = np.nonzero(true_g1) 
         idx2 = np.nonzero(true_g2)
 
+        # all valid points
+        valid_g1s = true_g1[idx1]
+        valid_g2s = true_g2[idx2]
+        valid_y1s = y1[idx1]
+        valid_y2s = y2[idx2]
+
+
         # With metacal
-        a1, b1, c1 = np.polyfit(true_g1[idx1], y1[idx1], 2)
-        a2, b2, c2 = np.polyfit(true_g2[idx2], y2[idx2], 2)
+        a1, b1, c1 = np.polyfit(valid_g1s, valid_y1s, 2)
+        a2, b2, c2 = np.polyfit(valid_g2s, valid_y2s, 2)
 
         # Without metacal
 
@@ -267,9 +283,8 @@ class mcSummaryObject:
 
         x = np.linspace(-0.05, 0.05, 20)
 
-
-        axs[0][0].plot(x, a1*x*x + b1*x + c1, c='k', label=f"a1 = {a1:.2f} \n b1 = {b1:.2f} \n c1 = {c1:.2f}", zorder=0)
-        axs[0][1].plot(x, a2*x*x + b2*x + c2, c='k', label=f"a2 = {a2:.2f} \n b2 = {b2:.2f} \n c2 = {c2:.2f}", zorder=0)
+        axs[0][0].plot(x, a1*x*x + b1*x + c1, c='k', label=f"a1 = {a1:.2f} \n b1 = {b1:.2f} \n c1 = {c1}", zorder=0)
+        axs[0][1].plot(x, a2*x*x + b2*x + c2, c='k', label=f"a2 = {a2:.2f} \n b2 = {b2:.2f} \n c2 = {c2}", zorder=0)
 
         # axs[1][0].plot(x, a1_nm*x*x + b1_nm*x + c1_nm, c='k', label=f"a1_nm = {a1_nm:.2f} \n b1_nm = {b1_nm} \n c1_nm = {c1_nm}", zorder=0)
         # axs[1][1].plot(x, a2_nm*x*x + b2_nm*x + c2_nm, c='k', label=f"a2_nm = {a2_nm:.2f} \n b2_nm = {b2_nm} \n c2_nm = {c2_nm}", zorder=0)
@@ -277,6 +292,8 @@ class mcSummaryObject:
         for i in range(2):
             for j in range(2):
                 axs[i][j].legend()
+                axs[i][j].axhline(zorder=0, color='k')
+                axs[i][j].axhline(y=0.001, zorder=0, color='r')
 
         # axs[0].legend()
         # axs[1].legend()
@@ -293,8 +310,8 @@ class mcSummaryObject:
         if plotname is not None:
             self.save_fig_to_plots(plotname)
         
-
-        plt.show() 
+        if show:
+            plt.show() 
 
 
     def plot_quadratic_m_simplified(self, color_column=None, plotname=None, blind=False, axis_equal=False):
@@ -479,25 +496,25 @@ class mcSummaryObject:
         plt.show() 
 
 
-    def plot_row_images(self, row_index):
+    def plot_row_images(self, row_index, height=4.5, axes=False, plotname=None):
         
         row_dict = self.df.loc[row_index, :].to_dict()
 
-        true_g1 = row_dict['oshear_g1']
-        true_g2 = row_dict['oshear_g2']
-        R = row_dict['R']
-        e1 = row_dict['reconvolved_noshear_e1']
-        e2 = row_dict['reconvolved_noshear_e2']
+        # true_g1 = row_dict['oshear_g1']
+        # true_g2 = row_dict['oshear_g2']
+        # R = row_dict['R']
+        # e1 = row_dict['reconvolved_noshear_e1']
+        # e2 = row_dict['reconvolved_noshear_e2']
 
-        g1g2_est = np.linalg.inv(R) @ np.array([[e1], [e2]])
+        # g1g2_est = np.linalg.inv(R) @ np.array([[e1], [e2]])
 
-        g1_est = g1g2_est[0]
-        g2_est = g1g2_est[1]
+        # g1_est = g1g2_est[0]
+        # g2_est = g1g2_est[1]
 
-        m1 = (g1_est - true_g1) / true_g1
-        m2 = (g2_est - true_g2) / true_g2
+        # m1 = (g1_est - true_g1) / true_g1
+        # m2 = (g2_est - true_g2) / true_g2
 
-        print(m1, m2)
+        # print(m1, m2)
 
 
         # original_gal = row_dict['original_gal']
@@ -509,15 +526,115 @@ class mcSummaryObject:
 
         mcObject = row_dict['mcObject']
 
+        reconvolved_no_shear_image = mcObject.reconvolved_noshear.drawImage(scale=mcObject.pixel_scale, offset=mcObject.offset)
 
-        fig, axs = plt.subplots(1, 2, figsize = (10, 5))
+        nx = reconvolved_no_shear_image.array.shape[1]
+        ny = reconvolved_no_shear_image.array.shape[0]
 
-        axs[0].imshow(original_gal_image.array)
-        axs[1].imshow(true_psf_image.array, cmap='plasma')
+        original_gal_image = mcObject.original_gal.drawImage(nx=nx, ny=ny, scale=mcObject.pixel_scale, offset=mcObject.offset)
+        true_psf_image = mcObject.true_psf.drawImage(nx=nx, ny=ny, scale=mcObject.pixel_scale, offset=mcObject.offset)
+        cosmic_sheared_image = mcObject._cosmic_sheared.drawImage(nx=nx, ny=ny, scale=mcObject.pixel_scale, offset=mcObject.offset)
+        deconvolved_image = mcObject._deconvolved.drawImage(nx=nx, ny=ny, scale=mcObject.pixel_scale, offset=mcObject.offset)
 
+        plus_g1 = mcObject._reconvolved_plus_g1.drawImage(nx=nx, ny=ny, scale=mcObject.pixel_scale, method='no_pixel', offset=mcObject.offset)
+        minus_g1 = mcObject._reconvolved_minus_g1.drawImage(nx=nx, ny=ny, scale=mcObject.pixel_scale, method='no_pixel', offset=mcObject.offset)
+
+        plus_g2 = mcObject._reconvolved_plus_g2.drawImage(nx=nx, ny=ny, scale=mcObject.pixel_scale, method='no_pixel', offset=mcObject.offset)
+        minus_g2 = mcObject._reconvolved_minus_g2.drawImage(nx=nx, ny=ny, scale=mcObject.pixel_scale, method='no_pixel', offset=mcObject.offset)
+
+        number = 4
+        numrows = 3
+        width = height * number
+
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+        fig, axs = plt.subplots(numrows, number, figsize = (width, numrows * height))
+
+        axs[0][0].imshow(original_gal_image.array)
+        axs[0][1].imshow(true_psf_image.array, cmap='plasma')
+        axs[0][2].imshow(deconvolved_image.array)
+        axs[0][3].imshow(reconvolved_no_shear_image.array)
+
+        # difference between original sheared and deconvolved
+        conv_diff = deconvolved_image.array - cosmic_sheared_image.array
+        vmax_conv_diff = np.max(conv_diff)
+        im = axs[2][0].imshow(conv_diff, cmap='PiYG', vmax=vmax_conv_diff, vmin=-vmax_conv_diff)
+        divider = make_axes_locatable(axs[2][0])
+        cax = divider.append_axes('right', size='5%', pad=0)
+        cb = fig.colorbar(im, cax=cax)
+        cb.set_label('Count difference')
+
+        g1_plus_diff = plus_g1.array - reconvolved_no_shear_image.array
+        g1_minus_diff = minus_g1.array - reconvolved_no_shear_image.array
+        g2_plus_diff = plus_g2.array - reconvolved_no_shear_image.array
+        g2_minus_diff = minus_g2.array - reconvolved_no_shear_image.array
+
+        print(g1_plus_diff.sum())
+        print(g1_minus_diff.sum())
+        print(g2_plus_diff.sum())
+        print(g2_minus_diff.sum())
+        
+        vmax_g1_plus = np.max(g1_plus_diff)
+        vmax_g1_minus = np.max(g1_minus_diff)
+        vmax_g2_plus = np.max(g2_plus_diff)
+        vmax_g2_minus = np.max(g2_minus_diff)        
+
+        im = axs[1][0].imshow(g1_plus_diff, cmap='PiYG', vmax=vmax_g1_plus, vmin=-vmax_g1_plus)
+
+        divider = make_axes_locatable(axs[1][0])
+        cax = divider.append_axes('right', size='5%', pad=0)
+        cb = fig.colorbar(im, cax=cax)
+        cb.set_label('Count difference')
+
+        im = axs[1][1].imshow(g1_minus_diff, cmap='PiYG', vmax=vmax_g1_minus, vmin=-vmax_g1_minus)
+
+        divider = make_axes_locatable(axs[1][1])
+        cax = divider.append_axes('right', size='5%', pad=0)
+        cb = fig.colorbar(im, cax=cax)
+        cb.set_label('Count difference')
+
+        im = axs[1][2].imshow(g2_plus_diff, cmap='PiYG', vmax=vmax_g2_plus, vmin=-vmax_g2_plus)
+
+        divider = make_axes_locatable(axs[1][2])
+        cax = divider.append_axes('right', size='5%', pad=0)
+        cb = fig.colorbar(im, cax=cax)
+        cb.set_label('Count difference')
+
+        im = axs[1][3].imshow(g2_minus_diff, cmap='PiYG', vmax=vmax_g2_minus, vmin=-vmax_g2_minus)
+
+        divider = make_axes_locatable(axs[1][3])
+        cax = divider.append_axes('right', size='5%', pad=0)
+        cb = fig.colorbar(im, cax=cax)
+        cb.set_label('Count difference')
+
+
+        axs[0][0].set_title('Original Galaxy')
+        axs[0][1].set_title('True PSF')
+        axs[0][2].set_title('Deconvolved Galaxy')
+        axs[0][3].set_title('Reconvolved No Shear')
+
+        axs[1][0].set_title('rec+g1 - rec0')
+        axs[1][1].set_title('rec-g1 - rec0')
+        axs[1][2].set_title('rec+g2 - rec0')
+        axs[1][3].set_title('rec-g2 - rec0')
+
+        axs[2][0].set_title('deconvolved - pre-seeing galaxy')
+
+        plt.subplots_adjust(hspace=0.3, wspace=0.3) 
+        
+        if not axes:
+            axs_iter = axs.flatten()
+            for ax in axs_iter:
+                ax.set_xlabel('x')
+                ax.set_ylabel('y')
+
+                ax.tick_params(bottom=False, top=False, left=False, right=False,
+                            labelbottom=False, labeltop=False, labelleft=False, labelright=False)
+
+        if plotname is not None:
+            plt.savefig(plotname)
         plt.show()
 
-        pass
 
 
     # plot quadratic_m
@@ -542,7 +659,7 @@ class comboObject:
         self.true_psf_fwhms = np.arange(0.5, 1.3, 0.1)
         self.gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
         self.offsets = [None]
-
+        self.wrong_psf_fwhms = None
 
     def print_parameters(self):
         print('\n' + 20 * '-')
@@ -556,6 +673,7 @@ class comboObject:
         print(f"True PSF fwhms: {self.true_psf_fwhms}")
         print(f"Gal/PSF ratios: {self.gal_psf_ratios}")
         print(f"Offsets: {self.offsets}")
+        print(f"Wrong PSF fwhms: {self.wrong_psf_fwhms}")
         print(20 * '-' + '\n')
 
 
@@ -563,69 +681,76 @@ class comboObject:
 
     # TODO CHANGE THIS TO REFLECT ACTUAL WRONGNESS
     def make_wrong(self, true_psf):
-        return true_psf
+        return 
 
 
-    def _create_combinations(self):
-        """
-        all things we could possibly want to iterate over
-
-        gal_flux
-        cshear_dg
-        gal_psf_ratio
-        oshear_dg
-        shape_mes_alg
-        pixel_scale
-
-        """
-
-        combinations = []
-
-        for gal_profile in self.gal_profiles.keys():
-            for true_psf_profile in self.true_psf_profiles.keys():
-                for shape_mes_alg in self.shape_mes_algs:
-                    for pixel_scale in self.pixel_scales:
-                        for gal_flux in self.gal_fluxes:
-                            for oshear_dg in self.oshear_dgs:
-                                for cshear_dg in self.cshear_dgs:
-                                    for gal_psf_ratio in self.gal_psf_ratios:
-                                        for true_psf_fwhm in self.true_psf_fwhms:
-
-                                        
-                                            dilation_factor = 1 / (1 - 2 * cshear_dg)
-
-                                            if gal_profile == 'gaussian':
-                                                original_gal = galsim.Gaussian(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm)
-
-                                            elif gal_profile == 'moffat':
-                                                # don't forget beta
-                                                original_gal = galsim.Moffat(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm, beta=self.gal_profiles[gal_profile])
-                                            
-                                            else:
-                                                raise Exception('Invalid galaxy profile!')
-                                            
-
-                                            if true_psf_profile == 'gaussian':
-                                                true_psf = galsim.Gaussian(flux=1.0, fwhm=true_psf_fwhm)
-            
-                                            
-                                            elif true_psf_profile == 'moffat':
-                                                # don't forget beta
-                                                true_psf = galsim.Moffat(flux=1.0, fwhm=true_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
-                                            
-                                            else:
-                                                raise Exception('Invalid PSF profile!')
-                                            
-                                            # making psf wrong
-                                            deconv_psf = self.make_wrong(true_psf)
-
-                                            # dilating reconv_psf
-                                            reconv_psf = deconv_psf.dilate(dilation_factor)
-
-                                            combinations.append((original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, self.offset))
-                                            combinations.append((original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, self.offset))
-
-        return combinations 
+#    def _create_combinations(self):
+#        """
+#        all things we could possibly want to iterate over
+#
+#        gal_flux
+#        cshear_dg
+#        gal_psf_ratio
+#        oshear_dg
+#        shape_mes_alg
+#        pixel_scale
+#
+#        """
+#
+#        combinations = []
+#
+#        for gal_profile in self.gal_profiles.keys():
+#            for true_psf_profile in self.true_psf_profiles.keys():
+#                for shape_mes_alg in self.shape_mes_algs:
+#                    for pixel_scale in self.pixel_scales:
+#                        for gal_flux in self.gal_fluxes:
+#                            for oshear_dg in self.oshear_dgs:
+#                                for cshear_dg in self.cshear_dgs:
+#                                    for gal_psf_ratio in self.gal_psf_ratios:
+#                                        for true_psf_fwhm in self.true_psf_fwhms:
+#                                                
+#                                    
+#                                            dilation_factor = 1 / (1 - 2 * cshear_dg)
+#
+#                                            if gal_profile == 'gaussian':
+#                                                original_gal = galsim.Gaussian(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm)
+#
+#                                            elif gal_profile == 'moffat':
+#                                                # don't forget beta
+#                                                original_gal = galsim.Moffat(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm, beta=self.gal_profiles[gal_profile])
+#                                            
+#                                            else:
+#                                                raise Exception('Invalid galaxy profile!')
+#                                            
+#
+#                                            if true_psf_profile == 'gaussian':
+#                                                true_psf = galsim.Gaussian(flux=1.0, fwhm=true_psf_fwhm)
+#
+#                                                if self.wrong_psf_fwhm is not None:
+#                                                    wrong_psf = galsim.Gaussian(flux=1.0, fwhm=self.wrong_psf_fwhm) 
+#                                            
+#                                            elif true_psf_profile == 'moffat':
+#                                                # don't forget beta
+#                                                true_psf = galsim.Moffat(flux=1.0, fwhm=true_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
+#
+#                                                if self.wrong_psf_fwhm is not None:
+#                                                    wrong_psf = galsim.Moffat(flux=1.0, fwhm=self.wrong_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
+#                                            
+#                                            else:
+#                                                raise Exception('Invalid PSF profile!')
+#                                            
+#                                            if self.wrong_psf_fwhm is not None:
+#                                                deconv_psf = wrong_psf
+#                                            else:
+#                                                deconv_psf = true_psf
+#
+#                                            # dilating reconv_psf
+#                                            reconv_psf = deconv_psf.dilate(dilation_factor)
+#
+#                                            combinations.append((original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, self.offset))
+#                                            combinations.append((original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, self.offset))
+#
+#        return combinations 
 
 
     def _create_object_list(self):
@@ -670,18 +795,15 @@ class comboObject:
 
                                                 if true_psf_profile == 'gaussian':
                                                     true_psf = galsim.Gaussian(flux=1.0, fwhm=true_psf_fwhm)
-                
-                                                
+
                                                 elif true_psf_profile == 'moffat':
                                                     # don't forget beta
                                                     true_psf = galsim.Moffat(flux=1.0, fwhm=true_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
-                                                
+
                                                 else:
                                                     raise Exception('Invalid PSF profile!')
                                                 
-                                                # making psf wrong
-                                                deconv_psf = self.make_wrong(true_psf)
-
+                                                deconv_psf = true_psf
                                                 # dilating reconv_psf
                                                 reconv_psf = deconv_psf.dilate(dilation_factor)
 
@@ -689,6 +811,75 @@ class comboObject:
                                                 combinations.append(metacalObject(original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, offset))
 
         return combinations 
+
+
+    def _create_object_list_wrong_psf(self):
+        """
+        all things we could possibly want to iterate over
+
+        gal_flux
+        cshear_dg
+        gal_psf_ratio
+        oshear_dg
+        shape_mes_alg
+        pixel_scale
+
+        """
+
+        combinations = []
+
+        for gal_profile in self.gal_profiles.keys():
+            for true_psf_profile in self.true_psf_profiles.keys():
+                for shape_mes_alg in self.shape_mes_algs:
+                    for pixel_scale in self.pixel_scales:
+                        for gal_flux in self.gal_fluxes:
+                            for oshear_dg in self.oshear_dgs:
+                                for cshear_dg in self.cshear_dgs:
+                                    for offset in self.offsets:
+                                        for gal_psf_ratio in self.gal_psf_ratios:
+                                            for true_psf_fwhm in self.true_psf_fwhms:
+                                                for wrong_psf_fwhm in self.wrong_psf_fwhms:
+                                                
+                                                    dilation_factor = 1 / (1 - 2 * cshear_dg)
+
+                                                    if gal_profile == 'gaussian':
+                                                        original_gal = galsim.Gaussian(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm)
+
+                                                    elif gal_profile == 'moffat':
+                                                        # don't forget beta
+                                                        original_gal = galsim.Moffat(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm, beta=self.gal_profiles[gal_profile])
+                                                    
+                                                    else:
+                                                        raise Exception('Invalid galaxy profile!')
+                                                    
+
+                                                    if true_psf_profile == 'gaussian':
+                                                        true_psf = galsim.Gaussian(flux=1.0, fwhm=true_psf_fwhm)
+                                                        wrong_psf = galsim.Gaussian(flux=1.0, fwhm=wrong_psf_fwhm)
+                                                    
+                                                    elif true_psf_profile == 'moffat':
+                                                        # don't forget beta
+                                                        true_psf = galsim.Moffat(flux=1.0, fwhm=true_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
+                                                        wrong_psf = galsim.Moffat(flux=1.0, fwhm=wrong_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
+
+                                                    else:
+                                                        raise Exception('Invalid PSF profile!')
+                                                    
+                                                    deconv_psf = wrong_psf
+
+
+                                                    # dilating reconv_psf
+                                                    reconv_psf = deconv_psf.dilate(dilation_factor)
+
+                                                    g1_only = metacalObject(original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, offset)
+                                                    g2_only = metacalObject(original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, offset)
+                                                    
+                                                    combinations.append(g1_only)
+                                                    combinations.append(g2_only)
+                                                    
+
+
+            return combinations 
 
 
     def _pickle_dont_overwrite(self, results, storage_file):
@@ -721,8 +912,13 @@ class comboObject:
         return new
         
     def generate_combinations(self, storage_file, num_workers):
+        
+        if self.wrong_psf_fwhms is not None:
+            combinations = self._create_object_list_wrong_psf()
 
-        combinations = self._create_object_list()
+        else:
+            combinations = self._create_object_list()
+
         
 
         with Pool(num_workers) as p:
@@ -763,7 +959,7 @@ class metacalObject:
         """
         # shearing the original galaxy
         sheared = self.original_gal.shear(g1=self.oshear_g1, g2=self.oshear_g2)
-
+        self._cosmic_sheared = sheared
         # Convolving the sheared galaxy with the PSF
         observed = galsim.Convolve(sheared, self.true_psf)
 
@@ -851,14 +1047,59 @@ class metacalObject:
 
         try:
             plus_moments_g1 = galsim.hsm.EstimateShear(plus_g1, psf_shearestimator_image, shear_est=self.shear_estimator)
-            minus_moments_g1 = galsim.hsm.EstimateShear(minus_g1, psf_shearestimator_image, shear_est=self.shear_estimator)
-            plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
-            minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
-            noshear_moments = galsim.hsm.EstimateShear(noshear_image, psf_shearestimator_image, shear_est=self.shear_estimator)
 
-        except galsim.GalSimError:
-            print('EstimateShear failed')
-            return np.nan, np.nan, np.nan
+        except galsim.GalSimError as e:
+            print(f'plus_g1 moments failed: {str(e)}')
+             
+            self.R = np.nan
+            self.noshear_e1 = np.nan
+            self.noshear_e2 = np.nan 
+            return
+
+        try:
+            minus_moments_g1 = galsim.hsm.EstimateShear(minus_g1, psf_shearestimator_image, shear_est=self.shear_estimator)
+
+        except galsim.GalSimError as e:
+            print(f'minus_g1 moments failed: {str(e)}')
+        
+            self.R = np.nan
+            self.noshear_e1 = np.nan
+            self.noshear_e2 = np.nan 
+            return
+
+        try:
+            plus_moments_g2 = galsim.hsm.EstimateShear(plus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
+            
+        except galsim.GalSimError as e:
+            print(f'plus_g2 moments failed: {str(e)}')
+
+            self.R = np.nan
+            self.noshear_e1 = np.nan
+            self.noshear_e2 = np.nan 
+            return
+
+        try:
+            minus_moments_g2 = galsim.hsm.EstimateShear(minus_g2, psf_shearestimator_image, shear_est=self.shear_estimator)
+        
+        except galsim.GalSimError as e:
+            print(f'minus_g2 moments failed: {str(e)}')
+
+            self.R = np.nan
+            self.noshear_e1 = np.nan
+            self.noshear_e2 = np.nan 
+            return
+
+        try:
+            noshear_moments = galsim.hsm.EstimateShear(noshear_image, psf_shearestimator_image, shear_est=self.shear_estimator)
+        
+        except galsim.GalSimError as e:
+            print(f'no_shear moments failed: {str(e)}')
+             
+            self.R = np.nan
+            self.noshear_e1 = np.nan
+            self.noshear_e2 = np.nan 
+            return
+
 
 
         e1_plus_g1 = plus_moments_g1.corrected_e1
