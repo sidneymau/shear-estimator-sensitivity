@@ -104,15 +104,20 @@ class mcSummaryObject:
         self.df = self.df.reset_index(drop=True)
 
 
-    def slice(self, by, boolean_criterion, void=True):
+    def slice(self, by, boolean_criterion=None, void=True, value=None):
         """
         by : what column to slice by
         values: the values of the column to keep
         """ 
         
         sliced_df = self.df
+        
+        if boolean_criterion is not None:
+            criterion = sliced_df[by].map(boolean_criterion)
+        
+        else:
+            criterion = sliced_df[by].map(lambda x: abs(x - value) < 0.0001)
 
-        criterion = sliced_df[by].map(boolean_criterion)
         sliced_df = sliced_df[criterion]
 
         if void:
@@ -213,7 +218,7 @@ class mcSummaryObject:
         return estimated_g1, estimated_g2, estimated_g1_NO_METACAL, estimated_g2_NO_METACAL
 
 
-    def plot_quadratic_m(self, color_column=None, plotname=None, blind=False, show=True):
+    def plot_quadratic_m(self, color_column=None, plotname=None, blind=False, show=True, ylims=None):
 
         true_g1 = self.df['oshear_g1'].to_numpy()
         true_g2 = self.df['oshear_g2'].to_numpy()
@@ -294,6 +299,9 @@ class mcSummaryObject:
                 axs[i][j].legend()
                 axs[i][j].axhline(zorder=0, color='k')
                 axs[i][j].axhline(y=0.001, zorder=0, color='r')
+                
+                if ylims is not None:
+                    axs[i][j].set_ylim(ylims)
 
         # axs[0].legend()
         # axs[1].legend()
@@ -312,6 +320,8 @@ class mcSummaryObject:
         
         if show:
             plt.show() 
+
+        return axs[0][0].get_ylim(), c1
 
 
     def plot_quadratic_m_simplified(self, color_column=None, plotname=None, blind=False, axis_equal=False):
