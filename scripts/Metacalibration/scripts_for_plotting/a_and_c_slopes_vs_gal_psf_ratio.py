@@ -75,10 +75,13 @@ def plot():
 
         diff = np.asarray(wrong_psf_fwhms) - 0.7 * np.ones(len(wrong_psf_fwhms))
 
-        slope, intercept = np.polyfit(diff, c_list, 1)
+        # normalizing diff to make everything dimensionless
+        norm_diff = diff / 0.7
 
-        axs[0].scatter(diff, c_list)
-        axs[0].plot(diff, slope * diff + intercept, label=f"ratio = {ratio}")
+        slope, intercept = np.polyfit(norm_diff, c_list, 1)
+
+        axs[0].scatter(norm_diff, c_list)
+        axs[0].plot(norm_diff, slope * norm_diff + intercept, label=f"ratio = {ratio}")
         ratio_tuple[ratio] = (slope, intercept)
 
 
@@ -91,17 +94,17 @@ def plot():
 
     axs[1].scatter(ratios, slopes)
 
-    axs[0].legend()
+    axs[0].legend(title=r"$\frac{FWHM_{gal}}{FWHM_{true\;PSF}}$")
 
-    axs[0].set_xlabel('delta_FWHM')
+    axs[0].set_xlabel('delta_FWHM / FWHM')
     axs[0].set_ylabel('c (intercept of quadratic fit for m)')
 
     axs[1].set_xlabel('gal_psf_ratio')
     axs[1].set_xticks(ratios)
-    axs[1].set_ylabel('rate of change of c (for a particular gal_psf_ratio)')
+    axs[1].set_ylabel('rate of change of c with fractional error on PSF size')
 
-    axs[0].set_title('intercept of quadratic fit for m as a function of delta_FWHM')
-    axs[1].set_title('rate of change of c as a function of gal_psf_ratio')
+    axs[0].set_title('intercept of quadratic fit for m as a function of delta_FWHM / FWHM')
+    axs[1].set_title('rate of change of c with fractional error on PSF size as a function of gal_psf_ratio')
 
     plt.show()
 
