@@ -9,39 +9,63 @@ import pandas as pd
 import pickle
 import matplotlib.pyplot as plt
 import os
-import sys
-# import metacal
 from multiprocessing import Pool
 
 class mcSummaryObject:
     """
     A wrapper for the master dataframe and all the slicing/plotting that goes into it
     """
-    # Attributes
-    # dataframe
-    # pickle file name used to create
 
     # Initialization Methods
 
     def __init__(self, pickle_file, dropNan=True):
+        """
+        Initialize an mcSummaryObject. 
         
+        Parameters:
+
+            pickle_file:    string        The .pickle file from which to create the object
+
+            dropNan:        bool          whether or not to drop lines with Nan from the initial table
+        
+        """ 
+        # the folder to which plots will be saved
         self.folder = 'plots/'
+
+        # the default fontsize for generated plots
         self.fontsize = 10
         plt.rcParams.update({'font.size': self.fontsize})
 
+        # the pickle file
         self.pickle_file = pickle_file
+
+        # list of tuples containing the results 
         self._results_array  = self._unpickle()
+
+        # generating the main dataframe
         self._generate_df()
         
         if dropNan:
             self.dropNan() # TODO put somewhere else?
             self._element_columns()
 
+        # post-adding this column for convenience later
         self._add_size_ratio()
+
+        # original_df should never be modified
         self.original_df = self.df
 
 
     def _unpickle(self):
+        """
+        Unpickles the pickle file and loads it into a list of tuples. Used by __init__ only
+
+        Returns:
+
+            List of tuples of results from iterations run through a comboObj
+
+        """
+
         with open(self.pickle_file, 'rb') as f:
             results_array =  pickle.load(f)
             return results_array
@@ -104,14 +128,18 @@ class mcSummaryObject:
         self.df = self.df.reset_index(drop=True)
 
 
-    def slice(self, by, boolean_criterion=None, void=True, value=None):
+    def slice(self, by, boolean_criterion=None, table_in=None, value=None):
         """
         by : what column to slice by
         values: the values of the column to keep
         """ 
         
-        sliced_df = self.df
-        
+
+        if table_in is None:
+            sliced_df = self.df
+        else:
+            sliced_df = table_in
+
         if boolean_criterion is not None:
             criterion = sliced_df[by].map(boolean_criterion)
         
@@ -120,7 +148,7 @@ class mcSummaryObject:
 
         sliced_df = sliced_df[criterion]
 
-        if void:
+        if table_in is None:
             self.df = sliced_df.reset_index(drop=True)
             
         else:
@@ -186,18 +214,22 @@ class mcSummaryObject:
             plt.savefig(self.folder + figname + '(' + str(version) + ').png')
 
 
-    def estimated_gi(self):
+    def estimated_gi(self, table=None):
         """
         """
 
+        if table is None:
+            dataframe = self.df
+        else:
+            dataframe = table
 
-        R_inv_list = [np.linalg.inv(R) for R in self.df['R']]
+        R_inv_list = [np.linalg.inv(R) for R in dataframe['R']]
         R_inv_array = np.asarray(R_inv_list)
         
         estimated_ellip_vec_list = []
-        for i in range(len(self.df['R'])):
-            e1 = self.df['reconvolved_noshear_e1'].to_numpy()[i]
-            e2 = self.df['reconvolved_noshear_e2'].to_numpy()[i]
+        for i in range(len(dataframe['R'])):
+            e1 = dataframe['reconvolved_noshear_e1'].to_numpy()[i]
+            e2 = dataframe['reconvolved_noshear_e2'].to_numpy()[i]
             estimated_ellip_vec_list.append(np.array([[e1],[e2]]))
         
         estimated_ellip_vec_array = np.asarray(estimated_ellip_vec_list)
@@ -208,7 +240,7 @@ class mcSummaryObject:
         estimated_g2 = estimated_shear_array[:,1, 0]
 
         # NOW WITHOUT METACAL
-        R_inv_NO_METACAL_array = [0.5 * np.eye(2) for R in self.df['R']]
+        R_inv_NO_METACAL_array = [0.5 * np.eye(2) for R in dataframe['R']]
         # R_inv_NO_METACAL_array = [np.linalg.inv(2 * np.eye(2)) for R in self.df['R']]
         estimated_shear_array_NO_METACAL = R_inv_NO_METACAL_array @ estimated_ellip_vec_array
 
@@ -216,6 +248,184 @@ class mcSummaryObject:
         estimated_g2_NO_METACAL = estimated_shear_array_NO_METACAL[:,1, 0]
 
         return estimated_g1, estimated_g2, estimated_g1_NO_METACAL, estimated_g2_NO_METACAL
+
+
+    
+    def ax_plot_quadratic_m(self, ax, true_gi_array, m, i=None, color_column=None, blind=False, cmap='cividis', quad_fit=False, legend=True, plot_x_axis=True, plot_y_axis=True, ylims=None): 
+        
+        yi = m
+        
+        ax.scatter(true_gi_array, m)
+    
+
+        idxi = np.nonzero(true_gi_array)
+        valid_gis = true_gi_array[idxi] 
+        valid_yis = yi[idxi]
+
+    
+        if color_column is not None:
+
+            # color_column_i = self.df[color_column].to_numpy()[idxi]
+            # print(color_column_i)
+
+            vmin = np.min(color_column)
+            vmax = np.max(color_column)
+            
+            im = ax.scatter(true_gi_array, yi, c=color_column, cmap=cmap, vmin=vmin, vmax=vmax)
+            
+        
+        else:
+            im = ax.scatter(true_gi_array, yi, c='r', label='m')
+        
+        # do colorbar outside this function
+
+        
+        if quad_fit:
+            a, b, c = np.polyfit(valid_gis, valid_yis, 2) 
+
+            x = np.linspace(np.min(true_gi_array), np.max(true_gi_array), 20)
+            
+            ax.plot(x, a*x*x + b*x + c,
+                    c='k', label=f"a = {a:.2f} \n b = {b:.2f} \n c = {c}", zorder=0)
+        
+        # plotting error limit of 0.001    
+        ax.axhline(y=0.001, zorder=0, color='r')
+
+        if i is not None:
+            ax.set_xlabel(f'true_g{i}')
+            ax.set_ylabel(fr'$m = (\frac{{{{g_2}}_{{est}} - {{g_2}}_{{true}}}}{{{{g_2}}_{{true}}}})$')
+            ax.set_title(f'g{i}')
+
+        if legend:
+            ax.legend()
+        
+        if plot_x_axis:
+            ax.axhline(zorder=0, color='k')
+        
+        if plot_y_axis:
+            ax.axvline(zorder=0, color='k')
+
+        if ylims is not None:
+            ax.set_ylim(ylims)
+        
+        if quad_fit:
+            return im, c, a
+
+        return im
+
+
+    def get_fit_parameters(self, dataframe_subset):
+
+
+        true_g1 = dataframe_subset['oshear_g1'].to_numpy()
+        true_g2 = dataframe_subset['oshear_g2'].to_numpy()
+
+
+
+        estimated_g1, estimated_g2, estimated_g1_NOMETACAL, estimated_g2_NOMETACAL = self.estimated_gi(table=dataframe_subset)
+
+        idx1 = np.nonzero(true_g1)
+        idx2 = np.nonzero(true_g2)
+
+        true_g1 = true_g1[idx1]
+        true_g2 = true_g2[idx2]
+
+        estimated_g1 = estimated_g1[idx1]
+        estimated_g2 = estimated_g2[idx2]
+        estimated_g1_NOMETACAL = estimated_g1_NOMETACAL[idx1]
+        estimated_g2_NOMETACAL = estimated_g2_NOMETACAL[idx2]
+
+        m1_nomc = (estimated_g1_NOMETACAL - true_g1) / true_g1
+        m2_nomc = (estimated_g2_NOMETACAL - true_g2) / true_g2
+        m1_mc = (estimated_g1 - true_g1) / true_g1
+        m2_mc = (estimated_g2 - true_g2) / true_g2
+    
+        a1, b1, c1 = np.polyfit(true_g1, m1_mc, 2) 
+
+        return a1, b1, c1
+
+    def with_without_metacal(self, color_column=None, plotname=None, blind=False, show=True, cmap='cividis', nomc_ylims=None, mc_ylims=None):
+
+        true_g1 = self.df['oshear_g1'].to_numpy()
+        true_g2 = self.df['oshear_g2'].to_numpy()
+
+
+
+        estimated_g1, estimated_g2, estimated_g1_NOMETACAL, estimated_g2_NOMETACAL = self.estimated_gi()
+
+        idx1 = np.nonzero(true_g1)
+        idx2 = np.nonzero(true_g2)
+
+        true_g1 = true_g1[idx1]
+        true_g2 = true_g2[idx2]
+
+        estimated_g1 = estimated_g1[idx1]
+        estimated_g2 = estimated_g2[idx2]
+        estimated_g1_NOMETACAL = estimated_g1_NOMETACAL[idx1]
+        estimated_g2_NOMETACAL = estimated_g2_NOMETACAL[idx2]
+
+        if color_column is not None:
+            color_column_1 = self.df[color_column].to_numpy()[idx1]
+            color_column_2 = self.df[color_column].to_numpy()[idx2]
+        
+        else:
+            color_column_1 = None
+            color_column_2 = None
+
+
+        fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+
+        # plotting to each individual ax 
+
+        m1_nomc = (estimated_g1_NOMETACAL - true_g1) / true_g1
+        m2_nomc = (estimated_g2_NOMETACAL - true_g2) / true_g2
+        m1_mc = (estimated_g1 - true_g1) / true_g1
+        m2_mc = (estimated_g2 - true_g2) / true_g2
+
+        factor = 0.2
+
+        if nomc_ylims is None:
+            # without metacal ylims
+            mmax_nomc = np.max([np.max(m1_nomc), np.max(m2_nomc)])
+            mmin_nomc = np.min([np.min(m1_nomc), np.min(m2_nomc)])
+            nomc_ylims = (mmin_nomc - factor*abs(mmin_nomc), mmax_nomc + factor*abs(mmax_nomc))
+
+        if mc_ylims is None:
+            mmax_mc = np.max([np.max(m1_mc), np.max(m2_mc)])
+            mmin_mc = np.min([np.min(m1_mc), np.min(m2_mc)])
+            mc_ylims = (mmin_mc - factor*abs(mmin_mc), mmax_mc + factor*abs(mmax_mc))
+
+        #g1 without metacal
+        im = self.ax_plot_quadratic_m(axs[0][0], true_g1, m1_nomc, i=1, color_column=color_column_1, blind=blind, ylims=nomc_ylims,
+                                cmap=cmap, quad_fit=False, legend=True)
+
+        #g2 without metacal
+        im =self.ax_plot_quadratic_m(axs[0][1], true_g2, m2_nomc, i=2, color_column=color_column_2, blind=blind, ylims=nomc_ylims,
+                                cmap=cmap, quad_fit=False, legend=True)
+        
+        #g1 with metacal
+        im, c1_mc, a1 = self.ax_plot_quadratic_m(axs[1][0], true_g1, m1_mc, i=1, color_column=color_column_1, blind=blind, ylims=mc_ylims,
+                                cmap=cmap, quad_fit=True, legend=True)
+
+        #g2 with metacal
+        im, c2_mc, a2 = self.ax_plot_quadratic_m(axs[1][1], true_g2, m2_mc, i=2, color_column=color_column_2, blind=blind, ylims=mc_ylims,
+                                cmap=cmap, quad_fit=True, legend=True)
+
+        plt.subplots_adjust(hspace=0.5, wspace=0.3)
+
+        if color_column is not None:
+            cbaxes0 = fig.add_axes([0.2, 0.05, 0.6, 0.01])
+            cb0 = fig.colorbar(im, ax=axs[:], orientation='horizontal', shrink=0.45, cax=cbaxes0)
+            cb0.set_label(color_column)
+
+        if plotname is not None:
+            self.save_fig_to_plots(plotname)
+
+        if show:
+            plt.show() 
+
+
+        return nomc_ylims, mc_ylims, c1_mc, c2_mc, a1, a2
 
 
     def plot_quadratic_m(self, color_column=None, plotname=None, blind=False, show=True, ylims=None):
@@ -413,7 +623,33 @@ class mcSummaryObject:
         plt.show() 
 
 
-    def plot_absolute_error(self, color_column=None, plotname=None, blind=False):
+
+
+    def ax_plot_absolute_error(self, ax, estimated_gi_array, true_gi_array, i, color_array=None, color='r', cmap='cividis', ylims=None):
+        
+        abs_error = estimated_gi_array - true_gi_array
+
+        ax.set_xlabel(f'true_g{i}')
+        ax.set_ylabel(rf'$({{g_{i}}}_{{est}} - {{g_{i}}}_{{true}})$')
+        ax.set_title(f'g{i}')
+
+        if ylims is not None:
+            ax.set_ylim(ylims)
+
+        if color_array is not None:
+            vmin = np.min(color_array)
+            vmax = np.max(color_array)
+
+            im = ax.scatter(true_gi_array, abs_error, c=color_array, cmap=cmap, vmin=vmin, vmax=vmax)
+        
+        else:
+            im = ax.scatter(true_gi_array, abs_error, c=color)
+
+
+        pass
+
+
+    def plot_absolute_error(self, color_column=None, plotname=None, blind=False, show=True):
 
         true_g1 = self.df['oshear_g1'].to_numpy()
         true_g2 = self.df['oshear_g2'].to_numpy()
@@ -440,11 +676,11 @@ class mcSummaryObject:
             vmin = np.min(self.df[color_column])
             vmax = np.max(self.df[color_column])
 
-            im00 = axs[0][0].scatter(true_g1, y1, c=self.df[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
-            im01 = axs[0][1].scatter(true_g2, y2, c=self.df[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
+            im00 = axs[1][0].scatter(true_g1, y1, c=self.df[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
+            im01 = axs[1][1].scatter(true_g2, y2, c=self.df[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
 
-            im10 = axs[1][0].scatter(true_g1, y1_nm, c=self.df[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
-            im11 = axs[1][1].scatter(true_g2, y2_nm, c=self.df[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
+            im10 = axs[0][0].scatter(true_g1, y1_nm, c=self.df[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
+            im11 = axs[0][1].scatter(true_g2, y2_nm, c=self.df[color_column], cmap='cividis', vmin=vmin, vmax=vmax)
 
             cbaxes0 = fig.add_axes([0.2, 0.05, 0.6, 0.01])
             # cbaxes1 = fig.add_axes([0.2, 0.95, 0.6, 0.01])
@@ -492,7 +728,7 @@ class mcSummaryObject:
 
 
 
-        fig.suptitle(r'$m = ({g_i,}_{est} - {g_i,}_{true})$ by element')
+        fig.suptitle(r'$({g_i,}_{est} - {g_i,}_{true})$ by element')
 
         if blind:
             for ax in axs:
@@ -502,8 +738,8 @@ class mcSummaryObject:
         if plotname is not None:
             self.save_fig_to_plots(plotname)
         
-
-        plt.show() 
+        if show:
+            plt.show() 
 
 
     def plot_row_images(self, row_index, height=4.5, axes=False, plotname=None):
@@ -653,25 +889,64 @@ class mcSummaryObject:
 
 
 class comboObject:
-
+    """
+    A class that contains functionality for generating combinations of parameters to
+    loop through, feeding those combinations into metacal using multiprocessing, and then
+    pickling the results array to be read by an mcSummaryObject
+    
+    """
 
     def __init__(self):
+        """
+        Initializing different lists and maps of parameters to loop over when combinations are generated. If a user wishes to customize the lists of parameters
+        to use (and they almost always will), they will need to reassign these attributes for the object post-initialization and before running the generate_combinations() method.
+        
+        """
 
+        # Default folder to which generated pickle files will be saved
         self.folder = 'pickles'
-
+        
+        # Default dict of original_gal profiles to loop through. The value "0" for the gaussian
+        # is never read. 
         self.gal_profiles = {'gaussian': 0}
-        self.true_psf_profiles = {'gaussian': 0, 'moffat': 3.5, 'moffat': 5}
-        self.shape_mes_algs= ['REGAUSS', 'LINEAR', 'BJ'] #TODO figure out how to deal with KSB
-        self.pixel_scales = [0.2, 0.02]
+
+        # Default list of original_gal fluxes to loop through
         self.gal_fluxes = [1.e5]
+
+        # Default dict of true PSF profiles to loop through. The value "0" for the gaussian
+        # is never read. For moffat profiles, the value of the dict is the desired "beta" parameter. 
+        self.true_psf_profiles = {'gaussian': 0, 'moffat': 3.5, 'moffat': 5}
+
+        # Default list of shear estimators to use (REGAUSS, LINEAR, and BJ currently supported)
+        self.shape_mes_algs= ['REGAUSS', 'LINEAR', 'BJ'] #TODO figure out how to deal with KSB
+
+        # Default list of pixel scales that one desires to loop through
+        self.pixel_scales = [0.2, 0.02]
+
+        # Default list of true shears to apply in both g1 and g2
         self.oshear_dgs = [i for i in np.arange(-0.05, 0.06, 0.01) if not abs(i) < 0.001]
+
+        # Defaut list of calibration shear magnitudes to apply in both g1 and g2
         self.cshear_dgs = [0.01]
+
+        # Default list of true PSF FWHMs to loop through
         self.true_psf_fwhms = np.arange(0.5, 1.3, 0.1)
+
+        # Default list of galaxy to PSF ratios for which to create galaxies
         self.gal_psf_ratios = np.arange(0.5, 2.1, 0.1)
+
+        # Default list of tuples of offsets from center to test (e.g. [(0.5, 0.5)])
         self.offsets = [None]
+
+        # Default list of wrong_psf_fwhms to use (default is to not use wrong PSFs, indicated by using None here)
         self.wrong_psf_fwhms = None
 
+
     def print_parameters(self):
+        """
+        Prints the parameters that will be generated -- good for double checking that everything is as expected
+        """
+
         print('\n' + 20 * '-')
         print(f"Galaxy Profiles: {self.gal_profiles}")
         print(f"True PSF Profiles: {self.true_psf_profiles}")
@@ -687,93 +962,14 @@ class comboObject:
         print(20 * '-' + '\n')
 
 
-
-
-    # TODO CHANGE THIS TO REFLECT ACTUAL WRONGNESS
-    def make_wrong(self, true_psf):
-        return 
-
-
-#    def _create_combinations(self):
-#        """
-#        all things we could possibly want to iterate over
-#
-#        gal_flux
-#        cshear_dg
-#        gal_psf_ratio
-#        oshear_dg
-#        shape_mes_alg
-#        pixel_scale
-#
-#        """
-#
-#        combinations = []
-#
-#        for gal_profile in self.gal_profiles.keys():
-#            for true_psf_profile in self.true_psf_profiles.keys():
-#                for shape_mes_alg in self.shape_mes_algs:
-#                    for pixel_scale in self.pixel_scales:
-#                        for gal_flux in self.gal_fluxes:
-#                            for oshear_dg in self.oshear_dgs:
-#                                for cshear_dg in self.cshear_dgs:
-#                                    for gal_psf_ratio in self.gal_psf_ratios:
-#                                        for true_psf_fwhm in self.true_psf_fwhms:
-#                                                
-#                                    
-#                                            dilation_factor = 1 / (1 - 2 * cshear_dg)
-#
-#                                            if gal_profile == 'gaussian':
-#                                                original_gal = galsim.Gaussian(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm)
-#
-#                                            elif gal_profile == 'moffat':
-#                                                # don't forget beta
-#                                                original_gal = galsim.Moffat(flux=gal_flux, fwhm=gal_psf_ratio * true_psf_fwhm, beta=self.gal_profiles[gal_profile])
-#                                            
-#                                            else:
-#                                                raise Exception('Invalid galaxy profile!')
-#                                            
-#
-#                                            if true_psf_profile == 'gaussian':
-#                                                true_psf = galsim.Gaussian(flux=1.0, fwhm=true_psf_fwhm)
-#
-#                                                if self.wrong_psf_fwhm is not None:
-#                                                    wrong_psf = galsim.Gaussian(flux=1.0, fwhm=self.wrong_psf_fwhm) 
-#                                            
-#                                            elif true_psf_profile == 'moffat':
-#                                                # don't forget beta
-#                                                true_psf = galsim.Moffat(flux=1.0, fwhm=true_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
-#
-#                                                if self.wrong_psf_fwhm is not None:
-#                                                    wrong_psf = galsim.Moffat(flux=1.0, fwhm=self.wrong_psf_fwhm, beta=self.true_psf_profiles[true_psf_profile])
-#                                            
-#                                            else:
-#                                                raise Exception('Invalid PSF profile!')
-#                                            
-#                                            if self.wrong_psf_fwhm is not None:
-#                                                deconv_psf = wrong_psf
-#                                            else:
-#                                                deconv_psf = true_psf
-#
-#                                            # dilating reconv_psf
-#                                            reconv_psf = deconv_psf.dilate(dilation_factor)
-#
-#                                            combinations.append((original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, self.offset))
-#                                            combinations.append((original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, self.offset))
-#
-#        return combinations 
-
-
     def _create_object_list(self):
         """
-        all things we could possibly want to iterate over
+        Creates a list metacalObject instances, looping through the desired parameters indicated in __init__ and 
+        any explicit changes to parameters made by the user
 
-        gal_flux
-        cshear_dg
-        gal_psf_ratio
-        oshear_dg
-        shape_mes_alg
-        pixel_scale
+        Returns:
 
+            combinations:       list of metacalObject instances      Used in the generate_combinations method
         """
 
         combinations = []
@@ -825,15 +1021,11 @@ class comboObject:
 
     def _create_object_list_wrong_psf(self):
         """
-        all things we could possibly want to iterate over
+        Used in the case where the user desires to use the wrong PSF. Function is called when the attribute self.wrong_psf_fwhms is not None.
 
-        gal_flux
-        cshear_dg
-        gal_psf_ratio
-        oshear_dg
-        shape_mes_alg
-        pixel_scale
+        Returns:
 
+            combinations:       list of metacalObject instances     Used in the generate_combinations() method
         """
 
         combinations = []
@@ -883,7 +1075,11 @@ class comboObject:
 
                                                     g1_only = metacalObject(original_gal, 0.0, oshear_dg, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, offset)
                                                     g2_only = metacalObject(original_gal, oshear_dg, 0.0, true_psf, deconv_psf, reconv_psf, reconv_psf, cshear_dg, cshear_dg, shape_mes_alg, pixel_scale, offset)
-                                                    
+
+                                                    psf_var_frac_err = (true_psf_fwhm**2 - wrong_psf_fwhm**2) / true_psf_fwhm**2
+                                                    g1_only.psf_var_frac_err = psf_var_frac_err
+                                                    g2_only.psf_var_frac_err = psf_var_frac_err
+
                                                     combinations.append(g1_only)
                                                     combinations.append(g2_only)
                                                     
@@ -893,6 +1089,17 @@ class comboObject:
 
 
     def _pickle_dont_overwrite(self, results, storage_file):
+        """
+        Save "results" to the file "storage_file" in the pickles folder without risk of overwriting.
+
+        Parameters:
+
+            results:        any datatype (usually a list of tuples)
+
+            storage_file:   string                                          Name of the pickle file to create (without suffix .pickle)
+
+
+        """
 
         name = storage_file
 
@@ -917,11 +1124,41 @@ class comboObject:
 
 
     def _apply_metacalibration_lambda(self, object):
+        """
+        
+        Run self.metacalibration() on a metacalObject instance and return the new object
+
+        Parameters:
+
+            object:     a metacalObject instance
+
+        Returns:
+
+            new:        the metacalObject instance after self.metacalibration() has been run
+
+        """
+
         new = object.metacalibration()
         print(object.R)
         return new
         
+
     def generate_combinations(self, storage_file, num_workers):
+        """
+        Run metacalibration on a combination of parameters using a certain number of workers and
+        save the results to a pickle file with name storage_file
+
+        Parameters:
+
+            storage_file        string      The name of the pickle file to which to store the results. Do not include the .pickle suffix
+
+            num_workers         int         The number of workers to use in multiprocessing
+
+        Returns:
+
+            VOID
+
+        """
         
         if self.wrong_psf_fwhms is not None:
             combinations = self._create_object_list_wrong_psf()
@@ -940,11 +1177,47 @@ class comboObject:
 
 
 class metacalObject:
+    """
+
+    An object containing parameters 
+
+    """
+    
 
     def __init__(self, original_gal, oshear_g1, oshear_g2, true_psf,
                         deconv_psf, reconv_psf, shear_estimation_psf,
                         cshear_dg1, cshear_dg2, shear_estimator, pixel_scale, offset):
+        """
+        Constructor for metacalObject instances.
 
+        Parameters:
+
+            original_gal            Galsim object               The source galaxy object
+
+            oshear_g1               float                       The cosmic shear to apply in g1
+
+            oshear_g2               float                       The cosmic shear to apply in g2
+
+            true_psf                Galsim object               The True PSF Galsim object
+
+            deconv_psf              Galsim object               The deconvolution PSF (Gamma 2) Galsim object
+
+            reconv_psf              Galsim object               The reconvolution PSF (Gamma 3) Galsim object
+
+            shear_estimation_psf    Galsim object               The PSF used by the shear estimator (Gamma 4), also a Galsim object
+
+            cshear_dg1              float                       The calibration shear magnitude (in g1). Sheldon and Huff uses 0.01
+
+            cshear_dg2              float                       The calibration shear magnitude (in g2). Sheldon and Huff uses 0.01    
+
+            shear_estimator         string                      REGAUSS, LINEAR, or BJ (KSB not yet supported), see Galsim documentation on galsim.EstimateShear()
+
+            pixel_scale             float                       The pixel scale to draw images with.
+
+            offset                  length-2 tuple (x, y)       The offset by which to draw galaxy images. Default is (0, 0), which draws the center of the object at the corner of four pixels
+
+
+        """
         self.original_gal = original_gal
         self.oshear_g1 = oshear_g1
         self.oshear_g2 = oshear_g2
@@ -961,10 +1234,9 @@ class metacalObject:
 
     def _generate_observed_galaxy(self):
         """
-        Returns:
 
-            observed:      galsim object   The galaxy as would be seen through a telescope with no corrections
-                                        (cosmic shear applied, PSF applied)
+        Creates a new attribute for the metacalObject called _observed_gal, which is the source galaxy
+        plus cosmic shear plus convolution by the true PSF.
 
         """
         # shearing the original galaxy
@@ -978,32 +1250,9 @@ class metacalObject:
 
     def _delta_shear(self):
         """
-        Takes in an observed galaxy object, two PSFs for metacal (deconvolving
-        and re-convolving), and the amount by which to shift g1 and g2, and returns
-        a tuple of tuples of modified galaxy objects.
-        ((g1plus, g1minus), (g2plus, g2minus))
-
-        Parameters:
-
-            observed_gal:   galsim object   The observed galaxy (cosmic shear and true_psf already applied)
-
-            psf_deconvolve: galsim object   The PSF chosen for deconvolution in metacal (\Gamma 2)
-
-            psf_reconvolve: galsim object   The reconvolution PSF (\Gamma 3) 
-
-            delta_g1:       float           Calibration shear g1
-
-            delta_g2:       float           Calibration shear g2
-
-
-        Returns:
-
-            g1_plus_minus:          tuple of galsim objects     (sheared with +dg1, sheared with -dg1)
-            
-            g2_plus_minus:          tuple of galsim objects     (sheared with +dg2, sheared with -dg2)
-
-            reconvolved_noshear:    galsim_object               (unsheared, for accuracy tests) 
-
+        Using the _observed_galaxy object, two PSFs for metacal (deconvolving
+        and re-convolving), and the amount by which to shift g1 and g2, creates "private" attributes
+        for the shears in +-g1 and +-g2
         """
         # Deconvolving by psf_deconvolve
         inv_psf = galsim.Deconvolve(self.deconv_psf)
@@ -1031,7 +1280,12 @@ class metacalObject:
     def _shear_response(self): 
 
         """
-        Returns:
+
+        Measures the shear response of a particular image.
+        
+        Creates the attributes R, noshear_e1, and noshear_e2 for the metacalObject based on previously created attributes.
+
+        Created attributes:
 
             R:              2D numpy array      The calculated shear response matrix 
 
@@ -1143,6 +1397,10 @@ class metacalObject:
 
 
     def metacalibration(self):
+        """
+        Perform metacalibration on the metacalObject instance, and return the new object.        
+        """
+        
         self._generate_observed_galaxy()
         self._delta_shear()
         self._shear_response()
@@ -1168,7 +1426,15 @@ class metacalObject:
 
 
     def show_images(self, height, fontsize=20):
-        
+        """
+        Shows images of the different objects used in this object's instance of metacal.
+
+        Parameters:
+
+            height      float       Height of the desired image
+
+            fontsize    float       Fontsize of the labels in the images (Default: 20)
+        """    
         number = 5
         width = height * number
 
