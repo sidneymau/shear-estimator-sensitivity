@@ -90,7 +90,11 @@ class mcSummaryObject:
 
 
     def _add_size_ratio(self):
-
+        """
+        
+        Adds the columns 'gal_fwhm', 'true_psf_fwhm', 'gal_psf_ratio', and 'deconv_psf_fwhm' to the master dataframe.
+        
+        """
         # USE FWHM FOR BOTH
         self.df['gal_fwhm'] = [gal.fwhm for gal in self.df['original_gal']]
         self.df['true_psf_fwhm'] = [psf.fwhm for psf in self.df['true_psf']]
@@ -100,8 +104,16 @@ class mcSummaryObject:
         
 
     def _generate_df(self):
+        
+        """
+        Creates the .df attribute of the mcSummaryObject from the ._results_array attribute        
+        """
 
         def expand_object(mcObject):
+            """
+            Helper function to expand _results_array into the necessary shape to create a dataframe from
+            """
+
             return (mcObject, mcObject.original_gal, mcObject.oshear_g1, mcObject.oshear_g2,
                     mcObject.true_psf, mcObject.deconv_psf, mcObject.reconv_psf, mcObject.shear_estimation_psf,
                     mcObject.cshear_dg1, mcObject.cshear_dg2, mcObject.shear_estimator,
@@ -123,6 +135,11 @@ class mcSummaryObject:
     # Modifier Methods
 
     def dropNan(self):
+        """
+
+        Drops all rows with any NaN values in the entire table, and resets the table indexes as well.
+
+        """
 
         self.df = self.df.dropna(axis=0, how='any')
         self.df = self.df.reset_index(drop=True)
@@ -130,6 +147,7 @@ class mcSummaryObject:
 
     def slice(self, by, boolean_criterion=None, table_in=None, value=None):
         """
+
         by : what column to slice by
         values: the values of the column to keep
         """ 
@@ -343,6 +361,7 @@ class mcSummaryObject:
         a1, b1, c1 = np.polyfit(true_g1, m1_mc, 2) 
 
         return a1, b1, c1
+
 
     def with_without_metacal(self, color_column=None, plotname=None, blind=False, show=True, cmap='cividis', nomc_ylims=None, mc_ylims=None):
 
